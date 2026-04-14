@@ -391,10 +391,11 @@ class AgentOrchestrator:
         if turn.rag_query or a == "rag_query":
             rag_result = self._get_rag_context(ctx, turn)
             if rag_result:
-                if not rag_result.answerable:
-                    return self._escalate(ctx, "UNANSWERABLE_QUERY")
-                rag_context = rag_result.context_for_llm()
-        
+                if rag_result.answerable:
+                    rag_context = rag_result.context_for_llm()
+                else:
+                    logger.warning("[%s T%d] RAG query unanswerable (confidence low)", ctx.session_id, ctx.turn_number)
+
         # 2. Data Intent lookup
         data_actions = ("policy_valuation","policy_exist_SOR_check","policy_basic_details",
                        "party_role_address_details","policy_benefits","policy_status", "return_details")
@@ -405,11 +406,17 @@ class AgentOrchestrator:
             
             sor_data = self._get_sor_data(ctx, a, turn)
             if sor_data is None:
+                # If it's a hard data action and SoR failed, that's usually a fatal SoR error
                 return self._escalate(ctx, "SOR_API_ERROR")
 
         # 3. Unified Synthesis: Combine responses if we have either RAG or SOR info
         if rag_context or sor_data:
             return self._synthesize_unified_response(ctx, turn, rag_context, sor_data)
+
+        # 3b. Final Escalation Catch: If we attempted a RAG or Data action and got NOTHING
+        if a == "rag_query" or turn.rag_query or a in data_actions:
+            logger.error("[%s T%d] Coordination failure: Zero data retrieved for requested intent(s)", ctx.session_id, ctx.turn_number)
+            return self._escalate(ctx, "UNANSWERABLE_QUERY")
 
         # Terminal
         if a == "create_contact_history":  return self._close_session(ctx, resolved=True, message="Is there anything else I can help you with today?")
