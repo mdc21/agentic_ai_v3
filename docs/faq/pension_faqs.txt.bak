@@ -1,0 +1,289 @@
+{
+  "faqs": [
+    {
+      "id": "faq_001",
+      "category": "Retirement Process",
+      "intent": "start_retirement_claim",
+      "question": "How do I start the process of taking my pension?",
+      "answer": "To start taking your pension, we first need to verify your identity and your current policy details. Once verified, we will issue a 'Wake-up Pack' detailing your options. You can choose to take a lump sum, buy an annuity, or set up flexible drawdown. You will need to complete and return the retirement claim forms enclosed in the pack.",
+      "context_tags": ["retire", "claim", "wake-up pack", "start pension", "drawdown"]
+    },
+    {
+      "id": "faq_002",
+      "category": "Retirement Process",
+      "intent": "understand_retirement_options",
+      "question": "What are my options when I retire – can I take everything at once, leave it invested, or buy an annuity?",
+      "answer": "At retirement you can usually: (a) take a tax-free lump sum (up to your available LSA) and the rest as taxable income via flexi-access drawdown (leaving the fund invested); (b) buy a lifetime annuity for guaranteed income; or (c) take a combination. Small pots under £10,000 may be taken as a lump sum. Options are governed by the Pension Schemes Act 2021 and HMRC rules.",
+      "context_tags": ["options", "annuity", "drawdown", "lump sum", "ufpls", "retire"]
+    },
+    {
+      "id": "faq_003",
+      "category": "Retirement Process",
+      "intent": "tax_free_cash_entitlement",
+      "question": "How much of my pension can I take as a tax-free lump sum?",
+      "answer": "You can usually take up to 25% of your pension pot as a tax-free lump sum. However, the total amount of tax-free lump sums you can take across all your UK pensions in your lifetime is limited by the standard Lump Sum Allowance (LSA) of £268,275. Each time you take a tax-free lump sum, it reduces your remaining LSA. Exceeding this limit results in taxation at your marginal rate.",
+      "context_tags": ["tax-free", "lump sum", "25%", "cash", "allowance", "LSA", "£268,275"]
+    },
+    {
+      "id": "faq_004",
+      "category": "Retirement Process",
+      "intent": "payment_timeline",
+      "question": "When will I receive my first pension payment after I submit my forms?",
+      "answer": "Once we receive all fully completed forms and necessary anti-money laundering (AML) checks are passed, it typically takes 10 to 15 working days for the funds to clear into your nominated bank account.",
+      "context_tags": ["timeline", "how long", "first payment", "processing time", "bank transfer"]
+    },
+    {
+      "id": "faq_005",
+      "category": "Retirement Process",
+      "intent": "small_pots_rules",
+      "question": "Can I take small pension pots as a cash lump sum?",
+      "answer": "Yes – pots worth £10,000 or less can often be taken as a one-off lump sum (up to three per person under small pots rules). 25% is usually tax-free (counts towards your overall Lump Sum Allowance (LSA)); the rest is taxed as income. Tax is deducted via PAYE.",
+      "context_tags": ["small pot", "£10,000", "trivial commutation", "cash out", "lump sum"]
+    },
+    {
+      "id": "faq_006",
+      "category": "Surrender & Encashment",
+      "intent": "surrender_policy",
+      "question": "Can I surrender (cash in) my policy early and what are the charges?",
+      "answer": "Early surrender is usually possible but may incur surrender charges, market value reductions, or loss of guarantees. For life insurance (like endowment), there may be a specific surrender value. For pensions, accessing funds before age 55 incurs a severe unauthorized payment tax charge of up to 55% from HMRC, unless retiring due to severe ill health.",
+      "context_tags": ["cash in", "surrender", "early withdrawal", "MVA", "penalty"]
+    },
+    {
+      "id": "faq_007",
+      "category": "Surrender & Encashment",
+      "intent": "calculate_surrender_value",
+      "question": "What is a surrender value and how is it calculated?",
+      "answer": "The surrender value is the amount you receive if you cancel a life insurance or investment policy before it matures. It is calculated based on the value of the underlying funds minus any early exit penalties, market value adjustments (MVAs), or administrative charges.",
+      "context_tags": ["surrender value", "calculation", "penalty", "MVA", "cancellation"]
+    },
+    {
+      "id": "faq_008",
+      "category": "Regulation & Eligibility",
+      "intent": "minimum_pension_age",
+      "question": "What is the earliest age I can access my pension?",
+      "answer": "You can normally start taking benefits from your pension from age 55. Under the Finance Act 2004, this will rise to 57 from 6 April 2028. Some older policies or severe ill-health cases may allow earlier access.",
+      "context_tags": ["age", "55", "57", "minimum age", "NMPA", "when can I retire"]
+    },
+    {
+      "id": "faq_009",
+      "category": "Regulation & Eligibility",
+      "intent": "ill_health_retirement",
+      "question": "What should I do if I want to retire early because of ill health?",
+      "answer": "Ill-health early retirement is often possible from any age if you meet the policy definition of serious ill health. Medical evidence is required. Serious ill-health lump sums may be paid tax-free (subject to HMRC rules and LSA); otherwise, they are taxed as income.",
+      "context_tags": ["ill health", "sick", "medical evidence", "early retirement"]
+    },
+    {
+      "id": "faq_010",
+      "category": "Regulation & Eligibility",
+      "intent": "moving_abroad",
+      "question": "What happens to my pension if I move abroad?",
+      "answer": "You can leave your pension in the UK and draw it from abroad, though it may be paid in Sterling and subject to exchange rate fluctuations. Alternatively, you may be able to transfer it to a Qualifying Recognised Overseas Pension Scheme (QROPS) to avoid unauthorized payment tax charges.",
+      "context_tags": ["abroad", "overseas", "expat", "QROPS", "moving away"]
+    },
+    {
+      "id": "faq_011",
+      "category": "Regulation & Eligibility",
+      "intent": "pension_transfer",
+      "question": "Can I transfer my pension to another provider?",
+      "answer": "Yes, in most cases you can transfer to another registered UK pension scheme. We provide a Cash Equivalent Transfer Value (CETV) and explain any exit charges or loss of guarantees (like GARs). Transfers are regulated by the FCA and require advice/warnings where appropriate.",
+      "context_tags": ["transfer", "move pension", "consolidation", "CETV", "COBS 19"]
+    },
+    {
+      "id": "faq_012",
+      "category": "Regulation & Eligibility",
+      "intent": "additional_contributions",
+      "question": "Am I eligible to make additional contributions to my pension?",
+      "answer": "Most policies allow additional contributions up to the Annual Allowance (currently £60,000 or 100% of relevant UK earnings, whichever is lower). Higher earners may face tapering; those taking benefits use the Money Purchase Annual Allowance (£10,000). Tax relief is available at your marginal rate.",
+      "context_tags": ["contribute", "add money", "annual allowance", "£60,000", "MPAA", "tax relief"]
+    },
+    {
+      "id": "faq_013",
+      "category": "Regulation & Eligibility",
+      "intent": "regulatory_protections",
+      "question": "What regulatory protections do I have with my policy?",
+      "answer": "Your policy is regulated by the Financial Conduct Authority (FCA). You are protected by the Financial Services Compensation Scheme (FSCS) up to £85,000 for certain claims, and 100% with no upper limit for long-term insurance policies. You also have the right to complain to the Financial Ombudsman Service (FOS).",
+      "context_tags": ["FSCS", "protection", "bankrupt", "safe", "FCA", "compensation", "FOS"]
+    },
+    {
+      "id": "faq_014",
+      "category": "Regulation & Eligibility",
+      "intent": "state_pension_interaction",
+      "question": "How does my private pension interact with the State Pension?",
+      "answer": "Your private pension is completely separate from the State Pension (paid by DWP based on NI record). However, both are taxable. Your State Pension uses up part of your personal tax allowance, which may affect the tax code applied to your private pension PAYE.",
+      "context_tags": ["state pension", "DWP", "national insurance", "tax code", "separate"]
+    },
+    {
+      "id": "faq_015",
+      "category": "Life Events",
+      "intent": "divorce_pension_sharing",
+      "question": "I am going through a divorce – how is my pension affected?",
+      "answer": "Pensions can be shared, earmarked, or offset via a court pension sharing order. We provide a Cash Equivalent Transfer Value (CETV) if requested. Transfers on divorce are usually tax-free. Process regulated by the Matrimonial Causes Act 1973 and FCA rules.",
+      "context_tags": ["divorce", "separation", "split", "sharing order", "CETV", "ex-spouse"]
+    },
+    {
+      "id": "faq_016",
+      "category": "Product Benefits",
+      "intent": "guaranteed_annuity_rate",
+      "question": "What is a guaranteed annuity rate (GAR)?",
+      "answer": "A Guaranteed Annuity Rate (GAR) is a valuable benefit attached to some older pension policies. It guarantees a specific, often highly favorable, conversion rate from your pension pot to a lifelong income, regardless of current market annuity rates.",
+      "context_tags": ["GAR", "guarantee", "annuity rate", "valuable benefit", "conversion rate"]
+    },
+    {
+      "id": "faq_017",
+      "category": "Product Benefits",
+      "intent": "death_benefits",
+      "question": "What happens to my pension if I die before or after retirement?",
+      "answer": "It depends on age and rules. Currently, if you die before 75, funds can usually pass to beneficiaries tax-free (subject to the £1,073,100 LSDBA). After 75, beneficiaries pay income tax. Note: From 6 April 2027, most unused pension funds and death benefits will be included in your estate for Inheritance Tax (40%).",
+      "context_tags": ["death", "die", "beneficiary", "inheritance tax", "IHT", "LSDBA", "April 2027"]
+    },
+    {
+      "id": "faq_018",
+      "category": "Product Benefits",
+      "intent": "critical_illness",
+      "question": "Does my life insurance policy cover critical illness?",
+      "answer": "Critical illness cover is typically an add-on or a separate policy entirely. Standard life insurance only pays out upon death or terminal illness. I will need to check your specific policy terms to confirm if critical illness benefits were included when you took out the policy.",
+      "context_tags": ["critical illness", "sick", "cancer", "heart attack", "cover"]
+    },
+    {
+      "id": "faq_019",
+      "category": "Tax & Charges",
+      "intent": "pension_income_tax",
+      "question": "How is my pension income taxed? What taxes are applicable to my pension withdrawal or lump sum?",
+      "answer": "If you take a pension encashment (lump sum), the tax-free portion (up to your available LSA) is not taxed. Any remaining pension income or encashment is taxed as earned income using your personal allowance (£12,570 for 2025/26) and income tax bands. Tax is deducted at source under PAYE. Higher or additional rate taxpayers may face further liability via Self Assessment.",
+      "context_tags": ["tax", "income tax", "PAYE", "personal allowance", "tax bands", "encashment", "withdrawal", "tax liability", "taxable"]
+    },
+    {
+      "id": "faq_020",
+      "category": "Tax & Charges",
+      "intent": "management_charges",
+      "question": "What charges or fees apply to my pension policy?",
+      "answer": "Most policies have annual management charges (AMCs, often capped at 0.75% for default arrangements under the Charge Cap), possible exit/surrender charges, and transaction costs. These reduce the pot available for your retirement. We can provide your latest charges breakdown from your policy file.",
+      "context_tags": ["AMC", "charges", "fees", "management fee", "costs", "0.75%", "charge cap"]
+    },
+    {
+      "id": "faq_021",
+      "category": "Tax & Charges",
+      "intent": "life_insurance_tax",
+      "question": "Do I have to pay taxes on my life insurance policy? What taxes are applicable to my life insurance payout or death benefit?",
+      "answer": "Generally, payouts from standard life insurance policies upon death are free from Capital Gains Tax and Income Tax. However, the payout will form part of your estate and may be subject to Inheritance Tax (IHT) unless the policy was placed into a trust. If you surrender a life insurance policy and it has made a gain, there may be a chargeable event gain subject to income tax.",
+      "context_tags": ["tax on payout", "life insurance tax", "capital gains", "inheritance tax", "IHT", "trust", "tax liability", "taxable payout"]
+    },
+    {
+      "id": "faq_022",
+      "category": "Annuity Queries",
+      "intent": "annuity_explanation",
+      "question": "What is a lifetime annuity and how does it work?",
+      "answer": "A lifetime annuity is a guaranteed income for life that you buy with some or all of your pension pot. Payments are taxed as income under PAYE. You can choose level, increasing, single-life or joint-life options, and add guarantees or protection for dependents. Rates are quoted at the time you apply.",
+      "context_tags": ["annuity", "guaranteed income", "how it works", "lifetime", "joint life"]
+    },
+    {
+      "id": "faq_023",
+      "category": "Annuity Queries",
+      "intent": "annuity_cooling_off",
+      "question": "Can I change my mind after purchasing an annuity?",
+      "answer": "Yes, you generally have a 30-day 'cooling-off' period starting from when you receive your policy documents. If you cancel within this time, your funds will be returned, though market fluctuations may affect the returned value. Once this period passes, an annuity cannot be cancelled.",
+      "context_tags": ["change mind", "cancel annuity", "cooling off", "30 days", "revoke"]
+    },
+    {
+      "id": "faq_024",
+      "category": "Annuity Queries",
+      "intent": "enhanced_annuity",
+      "question": "What is an enhanced or impaired life annuity?",
+      "answer": "If you have certain medical conditions or lifestyle factors (like smoking), your life expectancy may be lower. Providers offer 'enhanced' or 'impaired' annuities that pay a higher regular income than standard annuities to account for this.",
+      "context_tags": ["enhanced", "impaired", "medical", "smoking", "higher rate", "illness"]
+    },
+    {
+      "id": "faq_025",
+      "category": "P45/P60 & Tax Codes",
+      "intent": "p60_issuance",
+      "question": "What is a P60 and why have I received one from you?",
+      "answer": "A P60 is an end-of-tax-year summary (issued by 31 May) showing total pension income paid and tax deducted for the year ending 5 April. It is issued under HMRC PAYE rules for pension providers. Use it for Self Assessment, tax refunds, or benefit claims.",
+      "context_tags": ["P60", "tax year", "May", "end of year", "tax certificate", "HMRC"]
+    },
+    {
+      "id": "faq_026",
+      "category": "P45/P60 & Tax Codes",
+      "intent": "p45_submission",
+      "question": "What is a P45 and what does it mean in relation to my pension?",
+      "answer": "A P45 is issued when you stop receiving payments from one pension arrangement or employer. If you send us parts 2 and 3 when starting your pension, HMRC uses it to apply the correct tax code. Without it, we must use an emergency tax code.",
+      "context_tags": ["P45", "start pension", "stop working", "tax code", "HMRC"]
+    },
+    {
+      "id": "faq_027",
+      "category": "P45/P60 & Tax Codes",
+      "intent": "emergency_tax",
+      "question": "Why is my emergency tax code so high on my first pension payment?",
+      "answer": "HMRC requires us to apply an emergency 'Month 1' tax code on your first withdrawal if we do not have an up-to-date P45. This assumes you will withdraw that same amount every month. You can claim back any overpaid tax directly from HMRC, or it will adjust automatically in your next PAYE coding notice.",
+      "context_tags": ["emergency tax", "too much tax", "high tax", "Month 1", "refund"]
+    },
+    {
+      "id": "faq_028",
+      "category": "Letters & Correspondence",
+      "intent": "general_letter_inquiry",
+      "question": "I received a letter about my policy – what does it usually mean and what should I do?",
+      "answer": "Common letters include annual benefit statements, valuation updates, retirement option packs, annuity quotes, or regulatory updates. The letter will explain any required action and tax implications. Quote the reference number for a full explanation of the specific document on your file.",
+      "context_tags": ["letter", "statement", "correspondence", "what to do", "reference number"]
+    },
+    {
+      "id": "faq_029",
+      "category": "Letters & Correspondence",
+      "intent": "wakeup_pack",
+      "question": "I received a 'wake-up pack', what do I need to do?",
+      "answer": "A wake-up pack is sent to you by law as you approach your chosen retirement age. It provides information on your pension value and your options for accessing it. You do not have to do anything immediately; it is simply to help you start planning.",
+      "context_tags": ["wake-up pack", "letter", "approaching retirement", "what to do"]
+    },
+    {
+      "id": "faq_030",
+      "category": "Letters & Correspondence",
+      "intent": "benefit_statement",
+      "question": "Why did I receive an annual benefit statement and how do I read it?",
+      "answer": "We send an annual benefit statement to show you the current value of your pension, how your investments have performed over the past year, and a projection of what your pension might be worth when you retire. Pay close attention to the 'current value' and 'projected value' sections.",
+      "context_tags": ["statement", "annual", "benefit statement", "projection", "value"]
+    },
+    {
+      "id": "faq_031",
+      "category": "Letters & Correspondence",
+      "intent": "fund_closure",
+      "question": "I received a letter about a fund closure, how does this affect my policy?",
+      "answer": "When an investment fund is closed or merged, your money is automatically moved to a similar fund with comparable risk and objectives. The letter explains the changes and the new fund details. You do not need to take action unless you wish to manually switch your investments.",
+      "context_tags": ["fund closure", "fund merger", "investment change", "letter", "action required"]
+    },
+    {
+      "id": "faq_032",
+      "category": "Letters & Correspondence",
+      "intent": "nomination_of_beneficiaries",
+      "question": "I received a letter asking me to update my beneficiaries, why is this important?",
+      "answer": "Keeping your Expression of Wish or beneficiary nomination up to date ensures the scheme trustees know exactly who you want to receive your pension death benefits. It also helps ensure the payout can be made quickly and usually free from Income Tax or Inheritance Tax complications.",
+      "context_tags": ["beneficiary", "nomination", "expression of wish", "letter", "update details"]
+    },
+    {
+      "id": "faq_033",
+      "category": "Customer Service",
+      "intent": "change_beneficiary_process",
+      "question": "How do I change my beneficiary or nomination for death benefits?",
+      "answer": "You can update your expression of wish / beneficiary nomination at any time via our form or online portal. It is not legally binding but heavily guides the scheme trustees on the distribution of your pension death benefits.",
+      "context_tags": ["change beneficiary", "update nomination", "expression of wish", "who gets my money"]
+    },
+    {
+      "id": "faq_034",
+      "category": "Customer Service",
+      "intent": "make_complaint",
+      "question": "How do I make a complaint about my policy or service?",
+      "answer": "Complain directly to us first (we aim to resolve within 8 weeks under FCA DISP rules). If unresolved, refer to the Financial Ombudsman Service (free). All complaints are handled per FCA requirements.",
+      "context_tags": ["complaint", "unhappy", "FOS", "ombudsman", "dispute"]
+    },
+    {
+      "id": "faq_035",
+      "category": "Regulation & Eligibility",
+      "intent": "lsa_usage_source",
+      "question": "How do you know how much of my tax-free Lump Sum Allowance (LSA) I have used with other pension providers?",
+      "answer": "HMRC does not provide us with a live, centralized record of your pension allowances. We rely on the information you provide to us. When you apply to take a tax-free lump sum, you must complete a declaration form detailing any tax-free cash you have already taken from other providers. We may also ask you to provide a Transitional Tax-Free Amount Certificate (TTFAC) or official statements from your other providers to confirm the exact amounts used.",
+      "context_tags": ["allowance usage", "LSA", "other providers", "how do you know", "HMRC record", "TTFAC", "declaration form", "proof"]
+    }
+  ],
+  "metadata": {
+    "version": "2026-03-v3",
+    "source": "Merged comprehensive list including updated HMRC, FCA, and Finance Act rules as of March 2026, dedicated Letters & Correspondence intents, and explicit self-declaration rules for LSA.",
+    "usage_note": "Designed for RAG ingestion by an agentic AI. 35 intents present."
+  }
+}

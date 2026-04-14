@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic AI - Chat Interface</title>
+    <link rel="stylesheet" href="index.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background">
+        <div class="glow glow-1"></div>
+        <div class="glow glow-2"></div>
+    </div>
+    
+    <main class="chat-container">
+        <header class="chat-header">
+            <div class="header-content">
+                <div class="bot-info">
+                    <div class="bot-avatar">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20ZM12 6C9.79 6 8 7.79 8 10C8 12.21 9.79 14 12 14C14.21 14 16 12.21 16 10C16 7.79 14.21 6 12 6ZM12 12C10.9 12 10 11.1 10 10C10 8.9 10.9 8 12 8C13.1 8 14 8.9 14 10C14 11.1 13.1 12 12 12ZM12 15C9.33 15 4 16.33 4 19V20H20V19C20 16.33 14.67 15 12 15ZM6 18.2C6.46 17.61 9.07 16.8 12 16.8C14.93 16.8 17.54 17.61 18 18.2V18.5H6V18.2Z" fill="white"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1>Agentic AI</h1>
+                        <span class="status-indicator">
+                            <span class="dot"></span> Online
+                        </span>
+                    </div>
+                </div>
+                <button id="reset-btn" class="icon-btn" title="Reset Session">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <div id="messages" class="messages-area">
+            <div class="message bot animate-in">
+                <div class="message-bubble">
+                    Hello! I'm your AI insurance assistant. How can I help you with your policy today?
+                </div>
+            </div>
+        </div>
+
+        <footer class="chat-footer">
+            <form id="chat-form" class="input-container">
+                <input type="text" id="user-input" placeholder="Type your message..." autocomplete="off">
+                <button type="submit" class="send-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                    </svg>
+                </button>
+            </form>
+        </footer>
+    </main>
+
+    <script src="index.js"></script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+# Product Requirements Document (PRD): Agentic AI v3.1 (Hardened)
+
+## 1. Product Overview
+**Agentic AI v3.1** is a hardened, generative AI-powered conversational assistant designed for high-precision insurance interactions. Version 3.1 introduces strict retrieval confidence thresholds, a dedicated management dashboard for observability, and advanced Knowledge Base administration tools. Its primary purpose is to automate routine customer inquiries, perform secure identity verification, retrieve policy information from Systems of Record (SoR), answer general policy questions using a Knowledge Base (RAG), and seamlessly escalate complex or sensitive issues to human agents.
+
+## 2. Target Audience & Personas
+The system interacts with various types of callers:
+*   **Policyholders**: Direct owners of life, pension, annuity, or protection policies.
+*   **Financial Advisers (FA Representatives)**: Professionals calling on behalf of policyholders. Requires a two-step verification process (Policyholder first, then Adviser).
+*   **Trustees / Employers / Third Parties**: These caller types are currently out of scope for automated servicing and are immediately escalated to human agents.
+
+## 3. Core Features & Capabilities
+
+### 3.1. Intent Recognition & Routing
+*   **Natural Language Understanding**: Maps open-ended caller utterances to a set of predefined `action_intents` (e.g., `policy_valuation`, `request_verification`, [rag_query](file:///Users/shilpadhall/agentic_ai_projects/agentic_ai_v3/app/session_cache.py#96-105), [escalate](file:///Users/shilpadhall/agentic_ai_projects/agentic_ai_v3/app/agent.py#577-592)).
+*   **Dynamic Entity Extraction**: Extracts required entities (e.g., policy number, name, DOB, postcode) from conversational input, handling speech variations (e.g., "A for Alpha", "slash").
+
+### 3.2. Strict Identity & Verification (ID&V)
+*   **State-Driven Orchestration**: Enforces a strict sequence of states (`GREET` -> `COLLECT_POLICY` -> `CONFIRM_POLICY` -> `PLATFORM_DIR_CHECK` -> `SOR_CHECK` -> `IDENTIFY_CALLER` -> `VERIFY_POLICYHOLDER` -> `VERIFY_ADVISER`).
+*   **Multi-Factor Policyholder Verification**: Requires First Name, Last Name, Address Line 1, Postcode, and Date of Birth.
+*   **FA Verification**: Once the policyholder is verified, requires Adviser Firm Name, Address Line 1, Postcode, and Representative Name.
+*   **Fuzzy Matching**: Uses fuzzy string matching (`rapidfuzz`) to compare spoken entities against SoR data, accommodating minor transcription errors.
+*   **Data Validation Layer**:
+    *   UK Postcode regex validation (`^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$`).
+    *   Name character validation (alphabetic, hyphens, apostrophes).
+    *   Address heuristics (requires digits and letters).
+    *   Strict JSON Schema validation to prevent LLM hallucinations.
+
+### 3.3. System of Record (SoR) Integration
+*   **Tool Registry**: A configurable YAML-based registry mapping intents to API endpoints.
+*   **Data Minimisation**: The registry explicitly defines which fields are returned to the LLM for a given intent/product type (e.g., only `surrender_value` for Life; `transfer_value` and `GAR` for Pensions) to prevent data leakage.
+*   **Platform Directory & SoR Checks**: Validates policy existence and status before initiating ID&V.
+
+### 3.4. Knowledge Base (RAG) Integration
+*   **General Queries**: Answers non-personal, process-related questions (e.g., "What is the retirement age?") using a document knowledge base.
+*   **Intent Segregation**: Strictly prevents RAG from attempting to answer dynamic/personal queries (like "What is my policy value?"), which are routed to the SoR.
+
+### 3.5. Conversation Flow & Resolution
+*   **Contextual Responses**: Adapts responses based on heritage brand and product type (e.g., "your Brand_A life policy").
+*   **Post-Service Follow-up**: Proactively asks *"Is there anything else I can help you with today?"* after serving an intent.
+*   **Graceful Closure**: Recognizes when the caller is finished, logs the contact history, and gracefully resolves the session (`resolve_session`).
+
+### 3.6. Safety & Defensive Escalation
+The system automatically transfers the call to a human agent (`action_intent="escalate"`) under several conditions:
+*   **Explicit Request**: Caller asks for a human, representative, or operator.
+*   **Verification Failure**: ID&V fails after a set number of retries.
+*   **Loop Detection**: The agent repeats the same action without gathering new entities across multiple turns.
+*   **Emotional Duress**: Caller expresses distress, upset, bereavement, or financial hardship.
+*   **Unanswerable Queries**: The RAG system cannot confidently answer a general query.
+*   **Unsupported Caller Types**: Identification of a Trustee, Employer, or Third Party.
+*   **API/System Errors**: SoR or RAG integration completely fails.
+
+## 4. Architecture & Technical Design
+
+### components
+*   **AgentOrchestrator ([app/agent.py](file:///Users/shilpadhall/agentic_ai_projects/agentic_ai_v3/app/agent.py))**: The central state machine tracking conversation history, limits, loops, and state transitions.
+*   **LLM Client ([app/llm_client.py](file:///Users/shilpadhall/agentic_ai_projects/agentic_ai_v3/app/llm_client.py))**: Interface to OpenAI/Anthropic models using a highly structured prompt to enforce JSON output.
+*   **Prompt Engine ([app/prompts.py](file:///Users/shilpadhall/agentic_ai_projects/agentic_ai_v3/app/prompts.py))**: Contains the `SYSTEM_PROMPT` dictating rules, mapping logic, and sequence constraints.
+*   **Schema Definitions ([app/schema.py](file:///Users/shilpadhall/agentic_ai_projects/agentic_ai_v3/app/schema.py))**: Enforces `jsonschema` validation on every LLM response.
+*   **Tool Registry ([app/tool_registry.py](file:///Users/shilpadhall/agentic_ai_projects/agentic_ai_v3/app/tool_registry.py))**: Manages API configurations, caching, and data minimisation.
+*   **Mock Systems ([tools/policy.py](file:///Users/shilpadhall/agentic_ai_projects/agentic_ai_v3/tools/policy.py), `tools/rag.py`)**: Local stubs simulating SoR APIs and Vector Databases for rapid testing/development.
+
+### 4.2. Logging & Audit
+*   Produces structured JSON logs for auditability.
+*   **Logs include**: User/Bot interaction logs, LLM input/output/cost logs, SoR API interaction logs, and Knowledge Base interaction logs. Contact history is written back to the SoR upon session resolution or escalation.
+
+## 5. Future Considerations / Roadmap
+*   Integration with live transcription (STT) and voice synthesis (TTS) for telephony channel.
+*   Expansion of verification logic for Trustees and Employers.
+*   Integration with live SoR databases and actual document vector stores.
+*   Advanced telemetry and dashboarding for agent escalation reasons.

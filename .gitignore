@@ -1,0 +1,19 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Environment
+.env
+
+# Logs
+*.log
+
+# Project Specific
+chroma_data/
+.streamlit/secrets.toml
+
+# OS
+.DS_Store
+Thumbs.db

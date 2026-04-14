@@ -1,0 +1,115 @@
+# tool_registry.yaml v3 — complete action_intent to SoR API mapping.
+# OCIS renamed to Platform Directory System; BaNCS renamed to SoR_1.
+# Only response_fields listed here reach the LLM (data minimisation).
+# Edit this file to change endpoints without code changes.
+
+policy_exist_platform_directory_check:
+  endpoint: /platform-directory/policies/{policy_number}
+  method: GET
+  response_fields:
+    - policy_number
+    - heritage_brand
+    - product_type
+    - sor_system
+    - exists
+  cache_key_template: "platform_dir:{policy_number}"
+
+policy_exist_SOR_check:
+  endpoint: /sor1/policies/{policy_number}
+  method: GET
+  response_fields:
+    - policy_number
+    - heritage_brand
+    - product_type
+    - status
+    - inception_date
+  flags_fields:
+    - value_restriction
+    - share_restriction
+  cache_key_template: "sor1:{policy_number}"
+
+party_role_address_details:
+  endpoint: /sor1/policies/{policy_number}/parties
+  method: GET
+  response_fields:
+    - party_id
+    - role
+    - first_name
+    - last_name
+    - address_line1
+    - postcode
+    - date_of_birth
+  party_flags_fields:
+    - vulnerable_customer
+    - fcu_flag
+  cache_key_template: "party:{policy_number}"
+
+policy_basic_details:
+  endpoint: /sor1/policies/{policy_number}
+  method: GET
+  response_fields:
+    - heritage_brand
+    - product_type
+    - status
+    - inception_date
+    - sor_system
+  cache_key_template: "sor1:{policy_number}"
+
+# Valuation: product-type specific field sets
+policy_valuation:
+  endpoint: /sor1/policies/{policy_number}/valuation
+  method: GET
+  # Orchestrator selects the appropriate set based on product_type in session context
+  response_fields_pension:
+    - total_value
+    - transfer_value
+    - GAR
+    - GMP
+    - GMR
+    - charges
+    - tax
+    - valuation_date
+    - currency
+  response_fields_life:
+    - surrender_value
+    - bonus_amount
+    - charges
+    - valuation_date
+    - currency
+  response_fields_annuity:
+    - income_amount
+    - escalation_rate
+    - commencement_date
+    - currency
+  response_fields_protection:
+    - sum_assured
+    - premium
+    - expiry_date
+    - currency
+  # Default if product_type unknown
+  response_fields:
+    - total_value
+    - surrender_value
+    - valuation_date
+    - currency
+  cache_key_template: "valuation:{policy_number}"
+
+adviser_details:
+  endpoint: /sor1/policies/{policy_number}/parties?role=financial_adviser
+  method: GET
+  response_fields:
+    - party_id
+    - firm_name
+    - address_line1
+    - postcode
+  cache_key_template: "adviser:{policy_number}"
+
+# Contact history is a POST — handled by ContactHistoryClient directly
+# listed here for registry completeness
+create_contact_history:
+  endpoint: /sor1/policies/{policy_number}/contact-history
+  method: POST
+  response_fields:
+    - confirmation_id
+    - timestamp
+  cache_key_template: "contact:{policy_number}:{timestamp}"
