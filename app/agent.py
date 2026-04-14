@@ -22,7 +22,7 @@ from enum import Enum
 from typing import Optional
 
 from app.llm_client import AgentTurn, Entities, LLMClient
-from app.asr_client import ASRClient
+# from app.asr_client import ASRClient
 from tools.policy import PolicyAPIClient, PolicyRecord
 from tools.fuzzy import verify_caller, VerificationResult
 from app.session_cache import SessionCache, AuditLogger
@@ -107,11 +107,17 @@ class AgentOrchestrator:
     def __init__(self, channel: str = "chat") -> None:
         self._channel  = channel
         self._llm      = LLMClient()
-        self._asr      = ASRClient()
+        self._asr      = self._init_asr(channel)
         self._policy   = PolicyAPIClient()
         self._audit    = AuditLogger()
         self._contact  = ContactHistoryClient()
         self._tts      = self._init_tts(channel)
+
+    def _init_asr(self, channel):
+        if channel == "voice":
+            from app.asr_client import ASRClient
+            return ASRClient()
+        return None
 
     def _init_tts(self, channel):
         if channel == "voice":

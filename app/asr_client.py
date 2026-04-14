@@ -45,9 +45,14 @@ class ASRClient:
             self._QueryInput = QueryInput
             self._DetectIntentRequest = DetectIntentRequest
 
-            project_id = os.environ["DIALOGFLOW_PROJECT_ID"]
+            project_id = os.getenv("DIALOGFLOW_PROJECT_ID")
             location = os.getenv("DIALOGFLOW_LOCATION", "global")
-            agent_id = os.environ["DIALOGFLOW_AGENT_ID"]
+            agent_id = os.getenv("DIALOGFLOW_AGENT_ID")
+
+            if not project_id or not agent_id:
+                logger.warning("Dialogflow credentials (PROJECT_ID or AGENT_ID) missing. Falling back to mock ASR.")
+                self._mock = True
+                return
 
             self._session_prefix = (
                 f"projects/{project_id}/locations/{location}/agents/{agent_id}/sessions/"
@@ -59,7 +64,7 @@ class ASRClient:
             )
             logger.info("Dialogflow CX ASR client initialised (project=%s)", project_id)
         except ImportError:
-            logger.warning("google-cloud-dialogflow-cx not installed, falling back to mock ASR")
+            logger.warning("google-cloud-dialogflow-cx not installed, falling back to mock ASR.")
             self._mock = True
 
     def transcribe(
