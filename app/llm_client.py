@@ -69,6 +69,7 @@ class LLMClient:
         self.api_base = os.getenv("LLM_API_BASE_URL", "")
         self.groq_key = os.getenv("GROQ_API_KEY", "")
         self.groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.groq_fallback = os.getenv("GROQ_FALLBACK_MODEL", "llama-3.1-8b-instant")
         self.openai_key = os.getenv("OPENAI_API_KEY", "")
         self.anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
 
@@ -78,6 +79,7 @@ class LLMClient:
             if hasattr(st, "secrets"):
                 self.groq_key = st.secrets.get("GROQ_API_KEY", self.groq_key)
                 self.groq_model = st.secrets.get("GROQ_MODEL", self.groq_model)
+                self.groq_fallback = st.secrets.get("GROQ_FALLBACK_MODEL", self.groq_fallback)
                 self.openai_key = st.secrets.get("OPENAI_API_KEY", self.openai_key)
                 self.anthropic_key = st.secrets.get("ANTHROPIC_API_KEY", self.anthropic_key)
                 self.model = st.secrets.get("LLM_MODEL", self.model)
@@ -128,7 +130,7 @@ class LLMClient:
         return self.call_with_messages(
             build_messages(list(turn_history) + [{"role":"user","content":user_input}], ""))
     def _call_groq(self, messages: list) -> AgentTurn:
-        from groq import Groq
+        from groq import Groq, RateLimitError
         from app.prompts import SYSTEM_PROMPT
         client = Groq(api_key=self.groq_key)
         
@@ -137,20 +139,36 @@ class LLMClient:
         ]
         
         prompt_txt = str(groq_messages)
+        active_model = self.groq_model
         
-        resp = client.chat.completions.create(
-            model=self.groq_model,
-            messages=groq_messages,
-            temperature=0.2,
-            max_tokens=1024,
-            response_format={"type": "json_object"}
-        )
+        try:
+            resp = client.chat.completions.create(
+                model=active_model,
+                messages=groq_messages,
+                temperature=0.2,
+                max_tokens=1024,
+                response_format={"type": "json_object"}
+            )
+        except RateLimitError as e:
+            logger.warning("Groq model [%s] rate limited. Retrying with fallback [%s]...", active_model, self.groq_fallback)
+            active_model = self.groq_fallback
+            resp = client.chat.completions.create(
+                model=active_model,
+                messages=groq_messages,
+                temperature=0.2,
+                max_tokens=1024,
+                response_format={"type": "json_object"}
+            )
         
         raw_out = resp.choices[0].message.content.strip()
         itok = resp.usage.prompt_tokens
         otok = resp.usage.completion_tokens
-        # Standard Llama 3 on Groq pricing (approximate)
-        cost = (itok * 0.05 / 1000000) + (otok * 0.08 / 1000000)
+        
+        # Adjust cost based on model (8b is cheaper)
+        if "8b" in active_model:
+            cost = (itok * 0.05 / 1000000) + (otok * 0.08 / 1000000)
+        else:
+            cost = (itok * 0.59 / 1000000) + (otok * 0.79 / 1000000)
         
         turn = self._parse(raw_out)
         turn.prompt_used = prompt_txt
@@ -158,6 +176,7 @@ class LLMClient:
         turn.input_tokens = itok
         turn.output_tokens = otok
         turn.token_cost = cost
+        turn.model_name = f"🚀 Groq ({active_model})"
         return turn
 
     def _call_anthropic(self, messages: list) -> AgentTurn:
