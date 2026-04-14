@@ -141,8 +141,12 @@ class AgentOrchestrator:
         ctx.turn_number += 1
 
         # 1. ASR (voice) or pass-through (chat)
-        user_text = self._asr.transcribe(audio_bytes=audio_bytes, text_input=text_input,
-                                         session_id=ctx.session_id)
+        if self._asr:
+            user_text = self._asr.transcribe(audio_bytes=audio_bytes, text_input=text_input,
+                                             session_id=ctx.session_id)
+        else:
+            user_text = text_input or ""
+
         user_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", user_text)[:2000]
         logger.info("[%s T%d] User: %r", ctx.session_id, ctx.turn_number, user_text)
 
