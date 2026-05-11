@@ -58,8 +58,18 @@ class TTSClient:
         try:
             from openai import OpenAI
             api_key = os.getenv("OPENAI_API_KEY")
+            
+            # Streamlit Cloud secrets fallback
             if not api_key:
-                logger.warning("OPENAI_API_KEY missing. Falling back to mock TTS.")
+                try:
+                    import streamlit as st
+                    if hasattr(st, "secrets"):
+                        api_key = st.secrets.get("OPENAI_API_KEY")
+                except ImportError:
+                    pass
+
+            if not api_key:
+                logger.warning("OPENAI_API_KEY missing in both env and st.secrets. Falling back to mock TTS.")
                 self._mock = True
                 return
             self._openai_client = OpenAI(api_key=api_key)

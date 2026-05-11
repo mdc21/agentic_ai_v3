@@ -95,8 +95,18 @@ class ASRClient:
         try:
             from groq import Groq
             api_key = os.getenv("GROQ_API_KEY")
+            
+            # Streamlit Cloud secrets fallback
             if not api_key:
-                logger.warning("GROQ_API_KEY missing. Falling back to mock ASR.")
+                try:
+                    import streamlit as st
+                    if hasattr(st, "secrets"):
+                        api_key = st.secrets.get("GROQ_API_KEY")
+                except ImportError:
+                    pass
+
+            if not api_key:
+                logger.warning("GROQ_API_KEY missing in both env and st.secrets. Falling back to mock ASR.")
                 self._mock = True
                 return
             self._groq_client = Groq(api_key=api_key)
