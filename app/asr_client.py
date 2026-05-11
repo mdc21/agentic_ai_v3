@@ -102,7 +102,10 @@ class ASRClient:
             self._groq_client = Groq(api_key=api_key)
             logger.info("Groq ASR client initialised")
         except ImportError:
-            logger.warning("The 'groq' library is not installed. Please run 'pip install groq' to use Groq ASR. Falling back to mock.")
+            logger.error("CRITICAL: 'groq' library not found in current environment. Please verify your requirements.txt.")
+            self._mock = True
+        except Exception as e:
+            logger.error(f"CRITICAL: Failed to initialize Groq ASR: {e}")
             self._mock = True
 
     @property
