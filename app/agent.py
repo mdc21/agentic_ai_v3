@@ -433,10 +433,15 @@ class AgentOrchestrator:
 
         # Path 2: Combined (SoR + FAQ)
         if is_data_req and is_rag_req:
-            if rag_failed or sor_data is None:
-                reason = "RAG_UNAVAILABLE" if rag_failed else "SOR_UNAVAILABLE"
-                logger.error("[%s T%d] Combined path failure: %s", ctx.session_id, ctx.turn_number, reason)
-                return self._escalate(ctx, f"COMBINED_PATH_FAILURE_{reason}")
+            if sor_data is None:
+                logger.error("[%s T%d] Combined path failure: SOR_UNAVAILABLE", ctx.session_id, ctx.turn_number)
+                return self._escalate(ctx, "COMBINED_PATH_FAILURE_SOR_UNAVAILABLE")
+            
+            if rag_failed:
+                # If RAG fails but we have SoR data, we proceed with data only (fulfilled 'What' requirement)
+                logger.warning("[%s T%d] RAG failed in combined path. Proceeding with SoR data only.", ctx.session_id, ctx.turn_number)
+                return self._synthesize_unified_response(ctx, turn, "", sor_data)
+            
             return self._synthesize_unified_response(ctx, turn, rag_context, sor_data)
 
         # Path 1: SoR Only
