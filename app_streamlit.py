@@ -19,7 +19,7 @@ from app.rag_client import RAGClient
 def get_rag_client():
     # We use a dummy cache for the cached resource since session_state.ctx is turn-specific
     # but the vector DB connection and models are global.
-    from tools.cache import SessionCache
+    from app.session_cache import SessionCache
     return RAGClient(SessionCache())
 
 # Optional Mic Recorder
