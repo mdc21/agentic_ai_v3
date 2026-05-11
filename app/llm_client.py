@@ -159,7 +159,7 @@ class LLMClient:
         last_error = None
         active_model = models_to_try[0]
 
-        for model in models_to_try:
+        for i, model in enumerate(models_to_try):
             try:
                 active_model = model
                 resp = client.chat.completions.create(
@@ -171,7 +171,9 @@ class LLMClient:
                 )
                 break # Success!
             except RateLimitError as e:
-                logger.warning("Groq model [%s] rate limited. Trying next fallback...", active_model)
+                logger.warning("Groq model [%s] rate limited. Trying next fallback in 1s...", active_model)
+                import time
+                time.sleep(1)
                 last_error = e
                 continue
             except Exception as e:
