@@ -154,13 +154,23 @@ def _mock_score(query: str, chunk_text: str) -> float:
 
 # ── Client ────────────────────────────────────────────────────────────────────
 
-class RAGClient:
+    _model_cache = {}
+
     def __init__(self, session_cache) -> None:
         self._cache  = session_cache
         self._backend = VECTOR_DB_BACKEND
         self._mock   = self._backend == "mock" or os.getenv("USE_MOCK_RAG", "false").lower() == "true"
+        self._embedger = None
         if not self._mock:
             self._init_backend()
+
+    def _get_embedger(self):
+        """Singleton pattern for the embedding model to prevent reloading weights."""
+        if EMBEDDING_MODEL not in RAGClient._model_cache:
+            logger.info("Loading embedding model %s into memory...", EMBEDDING_MODEL)
+            from sentence_transformers import SentenceTransformer
+            RAGClient._model_cache[EMBEDDING_MODEL] = SentenceTransformer(EMBEDDING_MODEL)
+        return RAGClient._model_cache[EMBEDDING_MODEL]
 
     def list_all_faqs(self) -> list[dict]:
         """Return all FAQs (for Knowledge Hub UI) by loading from the source document."""
@@ -214,7 +224,6 @@ class RAGClient:
         elif self._backend == "pinecone":
             try:
                 from pinecone import Pinecone
-                from sentence_transformers import SentenceTransformer
                 
                 api_key = os.getenv("PINECONE_API_KEY") or (st.secrets.get("PINECONE_API_KEY") if "st" in globals() else None)
                 index_name = os.getenv("PINECONE_INDEX_NAME") or (st.secrets.get("PINECONE_INDEX_NAME") if "st" in globals() else None)
@@ -226,7 +235,7 @@ class RAGClient:
 
                 self._pc = Pinecone(api_key=api_key)
                 self._index = self._pc.Index(index_name)
-                self._embedger = SentenceTransformer(EMBEDDING_MODEL)
+                # Model is now lazy-loaded via _get_embedger()
                 logger.info("Pinecone RAG client initialised (Index: %s)", index_name)
             except ImportError:
                 logger.warning("pinecone-client or sentence-transformers not installed — falling back to mock RAG")
@@ -420,10 +429,8 @@ class RAGClient:
     # ── pgvector retrieval ─────────────────────────────────────────────────────
 
     def _pgvector_retrieve(self, question: str, product_type: Optional[str]) -> list[RAGChunk]:
-        # Embed the query first
-        from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer(EMBEDDING_MODEL)
-        embedding = model.encode(question).tolist()
+        # Embed the query first using cached model
+        embedding = self._get_embedger().encode(question).tolist()
 
         with self._pg_conn.cursor() as cur:
             filter_clause = "WHERE product_type = %s OR product_type IS NULL" if product_type else ""
@@ -449,8 +456,8 @@ class RAGClient:
     def _pinecone_retrieve(self, question: str, product_type: Optional[str],
                            heritage_brand: Optional[str]) -> list[RAGChunk]:
         """Hybrid search (Semantic + Keyword) for Pinecone."""
-        # 1. Embed query locally for semantic search
-        query_vec = self._embedger.encode(question).tolist()
+        # 1. Embed query locally for semantic search using cached model
+        query_vec = self._get_embedger().encode(question).tolist()
         
         # 2. Build filter
         filter_dict = {}

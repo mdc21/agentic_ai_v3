@@ -15,6 +15,13 @@ if str(root_dir) not in sys.path:
 from app.agent import AgentOrchestrator, AgentState
 from app.rag_client import RAGClient
 
+@st.cache_resource
+def get_rag_client():
+    # We use a dummy cache for the cached resource since session_state.ctx is turn-specific
+    # but the vector DB connection and models are global.
+    from tools.cache import SessionCache
+    return RAGClient(SessionCache())
+
 # Optional Mic Recorder
 try:
     from streamlit_mic_recorder import mic_recorder
@@ -261,8 +268,8 @@ with tabs[1]:
         st.warning("No analytics data found yet. Complete some calls to see statistics.")
 
 with tabs[2]:
-    st.title("📚 Knowledge Hub")
-    rag = RAGClient(st.session_state.ctx.cache)
+    st.header("Insurance Knowledge Hub")
+    rag = get_rag_client()
     
     st.subheader("🔍 Search Knowledge Base")
     search_mode = st.radio("Search Type", ["Text Match", "Semantic AI Search"], horizontal=True, label_visibility="collapsed")
