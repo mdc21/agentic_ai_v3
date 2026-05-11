@@ -154,6 +154,7 @@ def _mock_score(query: str, chunk_text: str) -> float:
 
 # ── Client ────────────────────────────────────────────────────────────────────
 
+class RAGClient:
     _model_cache = {}
 
     def __init__(self, session_cache) -> None:
