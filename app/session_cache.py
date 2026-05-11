@@ -33,6 +33,8 @@ class AuditRecord:
     rag_query_hash: Optional[str] = None;   rag_product_type: Optional[str] = None
     rag_scores: Optional[list] = None;      rag_cache_hit: Optional[bool] = None
     rag_latency_ms: Optional[int] = None;   flag_name: Optional[str] = None
+    asr_latency_ms: Optional[int] = None;   retrieval_latency_ms: Optional[int] = None
+    tts_latency_ms: Optional[int] = None
     flag_detected: Optional[bool] = None
     fields_checked: Optional[list] = None;  fields_passed: Optional[list] = None
     fields_failed: Optional[list] = None;   verification_passed: Optional[bool] = None
@@ -79,11 +81,12 @@ class AuditLogger:
         self._w(AuditRecord("session_open", sid, 0, channel=ch))
     def log_session_close(self, sid, t, state):
         self._w(AuditRecord("session_close", sid, t, agent_state=state))
-    def log_llm_turn(self, sid, t, state, action, intent, conf, ents, resp, duress_signal=None, itok=None, otok=None, input_text=None, raw_llm_out=None, token_cost=None, latency_ms=None):
+    def log_llm_turn(self, sid, t, state, action, intent, conf, ents, resp, duress_signal=None, itok=None, otok=None, input_text=None, raw_llm_out=None, token_cost=None, latency_ms=None, asr_ms=None, ret_ms=None, tts_ms=None):
         self._w(AuditRecord("llm_turn", sid, t, agent_state=state, action_intent=action,
             intent=intent, confidence=conf, duress_signal=duress_signal,
             extracted_entities={k: _redact(v) for k,v in ents.items()},
-            caller_response_hash=_hash(resp), input_tokens=itok, output_tokens=otok, llm_latency_ms=latency_ms))
+            caller_response_hash=_hash(resp), input_tokens=itok, output_tokens=otok, 
+            llm_latency_ms=latency_ms, asr_latency_ms=asr_ms, retrieval_latency_ms=ret_ms, tts_latency_ms=tts_ms))
         
         # Log to bot_llm_interaction.log
         if input_text and raw_llm_out:

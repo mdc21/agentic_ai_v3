@@ -343,7 +343,8 @@ class AgentOrchestrator:
             response, duress_signal=turn.duress_signal,
             itok=turn.input_tokens, otok=turn.output_tokens,
             input_text=turn.prompt_used, raw_llm_out=turn.raw_response, 
-            token_cost=turn.token_cost, latency_ms=total_latency
+            token_cost=turn.token_cost, latency_ms=total_latency,
+            asr_ms=asr_latency, ret_ms=retrieval_latency, tts_ms=tts_latency
         )
 
         # Final wrap-up
