@@ -80,8 +80,8 @@ class LLMClient:
         self.api_base = os.getenv("LLM_API_BASE_URL", "")
         self.groq_key = os.getenv("GROQ_API_KEY", "")
         self.groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-        self.groq_fallback_1 = os.getenv("GROQ_FALLBACK_1", "llama-3.1-70b-versatile")
-        self.groq_fallback_2 = os.getenv("GROQ_FALLBACK_2", "mixtral-8x7b-32768")
+        self.groq_fallback_1 = os.getenv("GROQ_FALLBACK_1", "gemma2-9b-it")
+        self.groq_fallback_2 = os.getenv("GROQ_FALLBACK_2", "llama-3.2-3b-preview")
         self.openai_key = os.getenv("OPENAI_API_KEY", "")
         self.anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
 
