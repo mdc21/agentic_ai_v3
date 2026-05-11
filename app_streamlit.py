@@ -113,7 +113,6 @@ with st.sidebar:
     st.session_state.channel = channel.lower()
     
     st.divider()
-    show_asr_status()
     
     # Initialize Orchestrator based on channel
     if ("orchestrator" not in st.session_state 
@@ -127,6 +126,9 @@ with st.sidebar:
         # Initial greeting
         resp = st.session_state.orchestrator.process_turn(st.session_state.ctx, text_input="hello")
         st.session_state.messages.append({"role": "assistant", "content": resp})
+
+    # Now show ASR status for the correctly initialized orchestrator
+    show_asr_status()
 
     st.write(f"**Session ID:** `{st.session_state.ctx.session_id}`")
     
