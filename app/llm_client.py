@@ -47,20 +47,31 @@ class AgentTurn:
 
 
 class LLMClient:
+    _clients = {}
+
     def __init__(self):
         self._load_config()
-        # Define priority list of backends based on available keys
         self._backends = []
-        if self.groq_key:
-            self._backends.append("groq")
-        if self.openai_key or self.api_base:
-            self._backends.append("openai")
-        if self.anthropic_key:
-            self._backends.append("anthropic")
+        if self.groq_key:      self._backends.append("groq")
+        if self.openai_key or self.api_base: self._backends.append("openai")
+        if self.anthropic_key: self._backends.append("anthropic")
         
         if not self._backends:
             logger.error("No LLM backends configured!")
             self._backends = ["mock"]
+
+    def _get_client(self, backend):
+        if backend not in LLMClient._clients:
+            if backend == "groq":
+                from groq import Groq
+                LLMClient._clients[backend] = Groq(api_key=self.groq_key)
+            elif backend == "openai":
+                from openai import OpenAI
+                LLMClient._clients[backend] = OpenAI(api_key=self.openai_key, base_url=self.api_base or None)
+            elif backend == "anthropic":
+                from anthropic import Anthropic
+                LLMClient._clients[backend] = Anthropic(api_key=self.anthropic_key)
+        return LLMClient._clients[backend]
 
     def _load_config(self):
         """Fetch configuration lazily from environment or streamlit secrets."""
@@ -130,9 +141,9 @@ class LLMClient:
         return self.call_with_messages(
             build_messages(list(turn_history) + [{"role":"user","content":user_input}], ""))
     def _call_groq(self, messages: list) -> AgentTurn:
-        from groq import Groq, RateLimitError
+        from groq import RateLimitError
         from app.prompts import SYSTEM_PROMPT
-        client = Groq(api_key=self.groq_key)
+        client = self._get_client("groq")
         
         groq_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + [
             m for m in messages if m.get("role") != "system"
@@ -183,7 +194,7 @@ class LLMClient:
         import anthropic
         from app.prompts import SYSTEM_PROMPT
         non_sys = [m for m in messages if m.get("role") != "system"]
-        client  = anthropic.Anthropic()
+        client  = self._get_client("anthropic")
         
         # Approximate input for logging
         prompt_txt = SYSTEM_PROMPT + "\n\n" + str(non_sys)
@@ -205,8 +216,8 @@ class LLMClient:
         return turn
 
     def _call_openai(self, messages: list) -> AgentTurn:
-        import httpx
         from app.prompts import SYSTEM_PROMPT
+        client = self._get_client("openai")
         
         openai_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + [
             m for m in messages if m.get("role") != "system"
@@ -215,18 +226,17 @@ class LLMClient:
         # Approximate input for logging
         prompt_txt = str(openai_messages)
 
-        r = httpx.post(f"{self.api_base}/chat/completions",
-            headers={"Authorization": f"Bearer {self.openai_key}",
-                     "Content-Type": "application/json"},
-            json={"model": self.model, "temperature": 0.2, "max_tokens": 1024, "messages": openai_messages, "response_format": {"type": "json_object"}},
-            timeout=30)
-        r.raise_for_status()
+        resp = client.chat.completions.create(
+            model=self.model,
+            messages=openai_messages,
+            temperature=0.2,
+            max_tokens=1024,
+            response_format={"type": "json_object"}
+        )
         
-        data = r.json()
-        raw_out = data["choices"][0]["message"]["content"].strip()
-        
-        itok = data.get("usage", {}).get("prompt_tokens", 0)
-        otok = data.get("usage", {}).get("completion_tokens", 0)
+        raw_out = resp.choices[0].message.content.strip()
+        itok = resp.usage.prompt_tokens
+        otok = resp.usage.completion_tokens
         
         # Approximations (e.g. gpt-4o)
         cost = (itok * 0.005 / 1000) + (otok * 0.015 / 1000)
