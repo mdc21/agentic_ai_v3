@@ -94,7 +94,6 @@ class ConversationContext:
     escalation_reason: Optional[str] = None
     # Loop detection: (action_intent, frozenset(entity_vals)) repeated N times
     _last_intent_key: Optional[tuple] = field(default=None, repr=False)
-    _loop_count: int = 0
     # Model tracking
     active_model: Optional[str] = None
     # Analytics tracking
@@ -135,32 +134,23 @@ class AgentOrchestrator:
 
     # ── Entry point ───────────────────────────────────────────────────────────
 
-    def transcribe_turn(self, audio_bytes: bytes, session_id: str) -> str:
-        """Helper to transcribe audio before full processing for better UI feedback."""
-        if not self._asr:
-            return ""
-        user_text = self._asr.transcribe(audio_bytes=audio_bytes, session_id=session_id)
-        user_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", user_text)[:2000]
-        return user_text
-
     def process_turn(self, ctx: ConversationContext,
-                     audio_bytes=None, text_input=None, user_text=None) -> str:
+                     audio_bytes=None, text_input=None) -> str:
         if ctx.state in (AgentState.RESOLVED, AgentState.ESCALATED):
             return "This conversation has now concluded. Thank you for your time today, and please feel free to start a new chat if you need further assistance."
 
         ctx.turn_number += 1
-        asr_latency = llm_latency = retrieval_latency = tts_latency = 0
 
         # 1. ASR (voice) or pass-through (chat)
-        if user_text is None:
-            asr_start = time.perf_counter()
-            if self._asr:
-                user_text = self._asr.transcribe(audio_bytes=audio_bytes, text_input=text_input,
-                                                 session_id=ctx.session_id)
-            else:
-                user_text = text_input or ""
-            asr_latency = int((time.perf_counter() - asr_start) * 1000)
-            user_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", user_text)[:2000]
+        asr_start = time.perf_counter()
+        if self._asr:
+            user_text = self._asr.transcribe(audio_bytes=audio_bytes, text_input=text_input,
+                                             session_id=ctx.session_id)
+        else:
+            user_text = text_input or ""
+        asr_latency = int((time.perf_counter() - asr_start) * 1000)
+
+        user_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", user_text)[:2000]
         
         # Handle empty voice input
         if self._channel == "voice" and not user_text.strip():
@@ -209,7 +199,30 @@ class AgentOrchestrator:
         rag_result, sor_data = asyncio.run(run_parallel())
         retrieval_latency = int((time.perf_counter() - retrieval_start) * 1000)
 
-        # 4. Merge entities, update caller type and intent BEFORE dispatch
+        # 4. Final Processing & Synthesis
+        response = self._dispatch_v2(ctx, turn, rag_result, sor_data)
+        
+        # 5. TTS Generation
+        tts_start = time.perf_counter()
+        response_text = self._speak(response, ctx)
+        tts_latency = int((time.perf_counter() - tts_start) * 1000)
+
+        # 6. Audit & Performance Summary
+        total_latency = asr_latency + llm_latency + retrieval_latency + tts_latency
+        logger.info("[%s T%d] LATENCY BREAKDOWN: ASR:%dms | LLM:%dms | RAG:%dms | TTS:%dms | TOTAL:%dms", 
+                    ctx.session_id, ctx.turn_number, asr_latency, llm_latency, retrieval_latency, tts_latency, total_latency)
+
+        self._audit.log_llm_turn(
+            ctx.session_id, ctx.turn_number, ctx.state.value,
+            turn.action, turn.intent, turn.confidence,
+            {f: getattr(turn.entities, f) for f in turn.entities.__dataclass_fields__},
+            turn.caller_response, duress_signal=turn.duress_signal,
+            itok=turn.input_tokens, otok=turn.output_tokens,
+            input_text=turn.prompt_used, raw_llm_out=turn.raw_response, 
+            token_cost=turn.token_cost, latency_ms=total_latency
+        )
+
+        # 4. Merge entities, update caller type and intent
         ctx.caller_entities.update(turn.entities)
 
         # 4a. Server-side entity fallbacks when LLM misses extraction
@@ -262,6 +275,7 @@ class AgentOrchestrator:
         # 4b. Server-side auto-completion: trigger verification if all required fields collected
         e = ctx.caller_entities
         ph_fields_done = all([e.first_name, e.last_name, e.address_line1, e.postcode, e.date_of_birth])
+        # adviser_rep_name is audit-only — do NOT require it to trigger compare_adviser_verification
         adv_fields_done = all([e.adviser_firm_name, e.adviser_address_line1, e.adviser_postcode])
         if ctx.state == AgentState.VERIFY_POLICYHOLDER and ph_fields_done and turn.action != "compare_verification":
             logger.info("[%s T%d] All policyholder fields collected — forcing compare_verification", ctx.session_id, ctx.turn_number)
@@ -270,19 +284,8 @@ class AgentOrchestrator:
             logger.info("[%s T%d] All adviser fields collected — forcing compare_adviser_verification", ctx.session_id, ctx.turn_number)
             turn.action = "compare_adviser_verification"
 
-        # 4c. Server-side policy number protection: don't ask for it if we already have it
-        if ctx.caller_entities.policy_number and turn.action in ("request_policy_number", "retry_policy_number"):
-            if ctx.channel == "chat":
-                logger.info("[%s T%d] Policy number provided but action was %s — forcing directory check (chat)", ctx.session_id, ctx.turn_number, turn.action)
-                turn.action = "policy_exist_platform_directory_check"
-            else:
-                logger.info("[%s T%d] Policy number provided but action was %s — forcing confirm_policy_number (voice)", ctx.session_id, ctx.turn_number, turn.action)
-                turn.action = "confirm_policy_number"
-                from tools.fuzzy import to_nato
-                nato_val = to_nato(ctx.caller_entities.policy_number)
-                turn.caller_response = f"Just to confirm, your policy number is {nato_val}. Is that correct?"
-
         # Update call intent if confidence is high or not yet set
+        # Exclude internal orchestration/verification actions from being saved as the user's "purpose"
         INTERNAL_ACTIONS = {
             "greet", "ask_purpose", "request_policy_number", "confirm_policy_number", 
             "retry_policy_number", "policy_exist_platform_directory_check", 
@@ -293,54 +296,10 @@ class AgentOrchestrator:
         if turn.intent and turn.intent not in INTERNAL_ACTIONS:
             if not ctx.call_intent or turn.confidence > 0.8:
                 ctx.call_intent = turn.intent
-
-        # Update caller type but protect confirmed state
         raw_type = turn.raw.get("caller_type","unknown")
-        
-        # Server-side caller_type fallback for transcription errors (e.g. "policy order" -> "policy_holder")
-        if (not raw_type or raw_type == "unknown") and user_text:
-            text_lower = user_text.lower()
-            if "policy" in text_lower and ("owner" in text_lower or "order" in text_lower or "holder" in text_lower):
-                raw_type = "policy_holder"
-            elif "adviser" in text_lower or "advisor" in text_lower or "firm" in text_lower:
-                raw_type = "fa_representative"
-
         if raw_type and raw_type != "unknown":
-            # If we already identified as policy_holder, don't let it switch back to fa_representative 
-            # unless it's a very high confidence shift (rare)
-            try:
-                new_type = CallerType(raw_type)
-                if not ctx.caller_type or ctx.caller_type == CallerType.UNKNOWN:
-                    ctx.caller_type = new_type
-                elif ctx.caller_type == CallerType.POLICY_HOLDER and new_type == CallerType.FA_REPRESENTATIVE:
-                    logger.warning("[%s T%d] Prevented suspicious caller_type shift: policy_holder -> fa_representative", ctx.session_id, ctx.turn_number)
-                else:
-                    ctx.caller_type = new_type
-            except ValueError:
-                pass
-
-        # 5. Final Processing & Synthesis
-        response = self._dispatch_v2(ctx, turn, rag_result, sor_data)
-        
-        # 5. TTS Generation
-        tts_start = time.perf_counter()
-        response_text = self._speak(response, ctx)
-        tts_latency = int((time.perf_counter() - tts_start) * 1000)
-
-        # 6. Audit & Performance Summary
-        total_latency = asr_latency + llm_latency + retrieval_latency + tts_latency
-        logger.info("[%s T%d] LATENCY BREAKDOWN: ASR:%dms | LLM:%dms | RAG:%dms | TTS:%dms | TOTAL:%dms", 
-                    ctx.session_id, ctx.turn_number, asr_latency, llm_latency, retrieval_latency, tts_latency, total_latency)
-
-        self._audit.log_llm_turn(
-            ctx.session_id, ctx.turn_number, ctx.state.value,
-            turn.action, turn.intent, turn.confidence,
-            {f: getattr(turn.entities, f) for f in turn.entities.__dataclass_fields__},
-            response, duress_signal=turn.duress_signal,
-            itok=turn.input_tokens, otok=turn.output_tokens,
-            input_text=turn.prompt_used, raw_llm_out=turn.raw_response, 
-            token_cost=turn.token_cost, latency_ms=total_latency
-        )
+            try: ctx.caller_type = CallerType(raw_type)
+            except ValueError: pass
 
         # Final wrap-up
         ctx.turn_history.append({"role": "assistant", "content": response})
@@ -394,12 +353,10 @@ class AgentOrchestrator:
 
         # Policyholder verification
         if a in ("request_verification", "continue_verification"):
-            # Ensure state transition to verification if we were in identification phase
-            if ctx.state in (AgentState.IDENTIFY_CALLER, AgentState.SOR_CHECK, AgentState.PLATFORM_DIRECTORY_CHECK):
+            # Force transition to policyholder verification if we just identified an FA caller
+            if (ctx.state in (AgentState.IDENTIFY_CALLER, AgentState.SOR_CHECK)
+                    and ctx.caller_type == CallerType.FA_REPRESENTATIVE):
                 ctx.state = AgentState.VERIFY_POLICYHOLDER
-            
-            # Special case for FA: they need to identify PH first, but we are now in VERIFY_POLICYHOLDER state
-            if ctx.caller_type == CallerType.FA_REPRESENTATIVE and a == "request_verification":
                 return self._handle_caller_type(ctx, turn)
 
             return turn.caller_response
@@ -410,9 +367,28 @@ class AgentOrchestrator:
             ctx.state = AgentState.VERIFY_ADVISER; return turn.caller_response
         if a == "compare_adviser_verification": return self._verify_adviser(ctx, turn)
 
-        # 5. Validation and Synthesis (3-Case Decision Tree)
-        data_actions = ("policy_valuation","policy_exist_SOR_check","policy_basic_details",
-                       "party_role_address_details","policy_benefits","policy_status", "return_details")
+        # Intent serving (Data + RAG Coordination in PARALLEL)
+        import asyncio
+        
+        async def run_parallel():
+            # Using asyncio.to_thread to run blocking I/O (RAG/SOR) in parallel
+            rag_task = None
+            sor_task = None
+            
+            if turn.rag_query or a == "rag_query":
+                rag_task = asyncio.to_thread(self._get_rag_context, ctx, turn)
+            if a in ("policy_valuation","policy_exist_SOR_check","policy_basic_details",
+                    "party_role_address_details","policy_benefits","policy_status", "return_details"):
+                sor_task = asyncio.to_thread(self._get_sor_data, ctx, a, turn)
+            
+            results = await asyncio.gather(*[t for t in (rag_task, sor_task) if t is not None])
+            
+            res_rag = results[0] if rag_task else None
+            res_sor = results[1] if (rag_task and sor_task) else (results[0] if sor_task else None)
+            return res_rag, res_sor
+
+        # Execute parallel block
+        rag_result, sor_data = asyncio.run(run_parallel())
         
         rag_context = ""
         rag_failed = False
@@ -423,33 +399,26 @@ class AgentOrchestrator:
                 rag_failed = True
                 logger.warning("[%s T%d] RAG query unanswerable (confidence low)", ctx.session_id, ctx.turn_number)
 
-        # Case Category Detection
-        is_data_req = a in data_actions
-        is_rag_req = (a == "rag_query" or turn.rag_query is not None)
-
-        # Path 2: Combined (SoR + FAQ)
-        if is_data_req and is_rag_req:
-            if rag_failed or sor_data is None:
-                reason = "RAG_UNAVAILABLE" if rag_failed else "SOR_UNAVAILABLE"
-                logger.error("[%s T%d] Combined path failure: %s", ctx.session_id, ctx.turn_number, reason)
-                return self._escalate(ctx, f"COMBINED_PATH_FAILURE_{reason}")
-            return self._synthesize_unified_response(ctx, turn, rag_context, sor_data)
-
-        # Path 1: SoR Only
-        if is_data_req:
+        # 5. Validation and Synthesis
+        data_actions = ("policy_valuation","policy_exist_SOR_check","policy_basic_details",
+                       "party_role_address_details","policy_benefits","policy_status", "return_details")
+        
+        if a in data_actions:
+            if rag_failed:
+                return self._escalate(ctx, "UNANSWERABLE_RAG_QUERY")
             if a == "return_details":
                 return self._return_details(ctx, turn)
             if sor_data is None:
-                logger.error("[%s T%d] SoR path failure: No data retrieved", ctx.session_id, ctx.turn_number)
-                return self._escalate(ctx, "SOR_PATH_FAILURE")
-            return self._synthesize_unified_response(ctx, turn, "", sor_data)
+                return self._escalate(ctx, "SOR_API_ERROR")
 
-        # Path 3: FAQ Only
-        if is_rag_req:
-            if rag_failed:
-                logger.error("[%s T%d] FAQ path failure: Unanswerable", ctx.session_id, ctx.turn_number)
-                return self._escalate(ctx, "FAQ_PATH_FAILURE")
-            return self._synthesize_unified_response(ctx, turn, rag_context, None)
+        # 3. Unified Synthesis: Combine responses if we have either RAG or SOR info
+        if rag_context or sor_data:
+            return self._synthesize_unified_response(ctx, turn, rag_context, sor_data)
+
+        # 3b. Final Escalation Catch: If we attempted a RAG or Data action and got NOTHING
+        if a == "rag_query" or turn.rag_query or a in data_actions:
+            logger.error("[%s T%d] Coordination failure: Zero data retrieved for requested intent(s)", ctx.session_id, ctx.turn_number)
+            return self._escalate(ctx, "UNANSWERABLE_QUERY")
 
         # Terminal
         if a == "create_contact_history":  return self._close_session(ctx, resolved=True, message="Is there anything else I can help you with today?")
@@ -600,15 +569,10 @@ class AgentOrchestrator:
         ctx.state = AgentState.SERVE_INTENT
         brand = ctx.heritage_brand or "your"
         ptype = ctx.product_type or "policy"
-        
-        # Filter technical intents
-        technical_intents = {"identify_caller", "verify_caller", "unknown", "greet", "ask_purpose"}
-        display_intent = ctx.call_intent if ctx.call_intent not in technical_intents else None
-
-        if display_intent:
+        if ctx.call_intent:
             return (f"Thank you, I've verified your identity. "
-                    f"I see you're calling about {display_intent.replace('_', ' ')} for your {brand} {ptype} policy. "
-                    f"Is that correct?")
+                    f"I see you need help with {ctx.call_intent.replace('_', ' ')} for your {brand} {ptype} policy. "
+                    f"Please go ahead.")
         return (f"Thank you, I've verified your identity. "
                 f"I can now help you with your {brand} {ptype} policy. "
                 f"What would you like to know?")
@@ -650,15 +614,9 @@ class AgentOrchestrator:
             return self._escalate(ctx, "VERIFICATION_FAILED_ADVISER")
 
         ctx.state = AgentState.SERVE_INTENT
-        
-        # Filter technical intents
-        technical_intents = {"identify_caller", "verify_caller", "unknown", "greet", "ask_purpose"}
-        display_intent = ctx.call_intent if ctx.call_intent not in technical_intents else None
-
-        if display_intent:
+        if ctx.call_intent:
             return ("Thank you, your firm details are confirmed. "
-                    f"I see you're calling about {display_intent.replace('_', ' ')}. "
-                    "Is that correct?")
+                    f"I see you are calling about {ctx.call_intent.replace('_', ' ')}. Please go ahead.")
         return ("Thank you, your firm details are confirmed. "
                 "How can I assist you with this policy today?")
 
@@ -709,7 +667,7 @@ class AgentOrchestrator:
             f"INSTRUCTIONS:\n"
             f"1. If both Knowledge and Data are present, integrate them into a holistic answer.\n"
             f"2. Use the FAQ for rules/taxes and the Data for the actual numbers.\n"
-            f"3. Always prioritize answering the user's question using the provided Data and Knowledge.\n"
+            f"3. IMPORTANT: If the KNOWLEDGE BASE (FAQ) CONTEXT is empty, DO NOT make up policy rules, taxes, or process steps from your own memory. Instead, state that you don't have that specific information to hand and offer to connect them to a specialist.\n"
             f"4. PRODUCT ALIGNMENT: Ensure the final answer matches the {ptype} product type. If any provided knowledge mentions other products (like pensions) while the caller has a {ptype} policy, EXCLUDE that irrelevant information.\n"
             f"5. Always mention 'your {brand} {ptype} policy'.\n"
             f"6. Keep it concise. End with: 'Is there anything else I can help you with today?'"

@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import base64
 from dotenv import load_dotenv
 
 # Load environment variables BEFORE importing app components
@@ -7,6 +8,14 @@ load_dotenv(override=True)
 
 from app.agent import AgentOrchestrator, AgentState
 from app.rag_client import RAGClient
+
+# Optional Mic Recorder
+try:
+    from streamlit_mic_recorder import mic_recorder
+    HAS_MIC = True
+except ImportError:
+    HAS_MIC = False
+    mic_recorder = None
 
 # Page configuration
 st.set_page_config(
@@ -43,65 +52,54 @@ st.markdown("""
     /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    /* header {visibility: hidden;}  <-- Removed this as it hides the sidebar toggle */
     </style>
 """, unsafe_allow_html=True)
-
-# Initialize Session State
-if "orchestrator" not in st.session_state:
-    st.session_state.orchestrator = AgentOrchestrator(channel="chat")
-
-if "ctx" not in st.session_state:
-    st.session_state.ctx = st.session_state.orchestrator.new_session()
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-    # Trigger the initial agent greeting
-    initial_response = st.session_state.orchestrator.process_turn(
-        st.session_state.ctx, 
-        text_input="hello"
-    )
-    st.session_state.messages.append({"role": "assistant", "content": initial_response})
-
-def reset_session():
-    st.session_state.ctx = st.session_state.orchestrator.new_session()
-    st.session_state.messages = []
-    st.rerun()
 
 # Sidebar for State Monitoring
 with st.sidebar:
     st.title("🤖 Status Monitor")
+    
+    # --- New Channel Selection ---
+    st.subheader("Interaction Channel")
+    channel = st.radio("Select Channel", ["Chat", "Voice"], index=0, horizontal=True)
+    st.session_state.channel = channel.lower()
+    
+    st.divider()
+    
+    # Initialize Orchestrator based on channel
+    if ("orchestrator" not in st.session_state 
+            or st.session_state.get("_last_channel") != st.session_state.channel
+            or not hasattr(st.session_state.orchestrator, "transcribe_turn")):
+        st.session_state.orchestrator = AgentOrchestrator(channel=st.session_state.channel)
+        st.session_state.ctx = st.session_state.orchestrator.new_session()
+        st.session_state.messages = []
+        st.session_state._last_channel = st.session_state.channel
+        
+        # Initial greeting
+        resp = st.session_state.orchestrator.process_turn(st.session_state.ctx, text_input="hello")
+        st.session_state.messages.append({"role": "assistant", "content": resp})
+
     st.write(f"**Session ID:** `{st.session_state.ctx.session_id}`")
     
-    # State Display with color
+    # State Display
     state_color = "🟢" if st.session_state.ctx.state == AgentState.RESOLVED else \
                   "🔴" if st.session_state.ctx.state == AgentState.ESCALATED else "🟡"
     st.subheader(f"Current State: {state_color}")
     st.info(f"**{st.session_state.ctx.state.value.replace('_', ' ').upper()}**")
     
-    # RAG & LLM Status
-    rag_backend = os.getenv("VECTOR_DB_BACKEND", "mock").upper()
-    kb_str = f"**{rag_backend} CLOUD**" if rag_backend == "PINECONE" else f"**{rag_backend} LOCAL**"
-    st.caption(f"Knowledge Base: {kb_str}")
-    
-    if st.session_state.ctx.active_model:
-        st.caption(f"Active Model: **{st.session_state.ctx.active_model}**")
-    
-    # Detected Intent
+    # Intent & Policy
     if st.session_state.ctx.call_intent:
         st.success(f"🎯 **Intent:** {st.session_state.ctx.call_intent.replace('_', ' ').title()}")
 
-    # Policy Info
     if st.session_state.ctx.policy_number:
         with st.expander("📄 Policy Details", expanded=True):
             st.write(f"**Number:** {st.session_state.ctx.policy_number}")
             if st.session_state.ctx.product_type:
                 st.write(f"**Product:** {st.session_state.ctx.product_type.title()}")
-            if st.session_state.ctx.heritage_brand:
-                st.write(f"**Brand:** {st.session_state.ctx.heritage_brand.title()}")
 
     # Collected Entities
-    with st.expander("👤 Collected Entities", expanded=False):
+    with st.expander("👤 Collected Entities", expanded=True):
         entities = st.session_state.ctx.caller_entities
         any_ent = False
         for field in entities.__dataclass_fields__:
@@ -109,200 +107,147 @@ with st.sidebar:
             if val:
                 st.write(f"**{field.replace('_', ' ').title()}:** {val}")
                 any_ent = True
-        if not any_ent:
-            st.write("No entities collected yet.")
+        
+        # Show Verification Result Scores if available
+        if st.session_state.ctx.verification_result:
+            st.divider()
+            st.caption("Fuzzy Match Scores:")
+            for f, res in st.session_state.ctx.verification_result.results.items():
+                icon = "✅" if res.passed else "❌"
+                p_note = " (Phonetic)" if getattr(res, 'phonetic_match', False) else ""
+                st.write(f"{icon} {f.title()}: {res.score:.0f}%{p_note}")
 
-    # Reset Button
-    st.divider()
     if st.button("🔄 Reset Conversation", use_container_width=True):
-        reset_session()
+        st.session_state.ctx = st.session_state.orchestrator.new_session()
+        st.session_state.messages = []
+        st.rerun()
 
-# Main Navigation Selection (Stateful tabs)
-tabs = ["🛡️ Policy Assistant", "📊 Real-time Analytics", "📚 Knowledge Base"]
-active_tab = st.radio("Navigation", tabs, horizontal=True, label_visibility="collapsed")
+# Main UI
+# Main UI
+tabs = st.tabs(["🛡️ AI Assistant", "📊 Call Statistics", "📚 Knowledge Hub"])
 
-if active_tab == "🛡️ Policy Assistant":
+with tabs[0]:
     st.title("🛡️ Insurance Policy Assistant")
-    st.info("💡 **Note**: This environment uses **synthetic dummy data** for testing conversational flows.")
-    st.markdown("---")
+    st.info(f"Mode: **{st.session_state.channel.upper()}**")
 
-    # 1. Render Historical Conversation
+    # 1. Render History
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-            if message.get("is_terminal"):
-                if st.session_state.ctx.state == AgentState.RESOLVED:
-                    st.success("Conversation successfully resolved!")
-                elif st.session_state.ctx.state == AgentState.ESCALATED:
-                    st.warning(f"Handing over to specialist. Reason: {message.get('esc_reason')}")
+            if message.get("audio_b64") and st.session_state.channel == "voice":
+                st.audio(base64.b64decode(message["audio_b64"]), format="audio/wav")
 
-    # 2. Placeholder for the LIVE turn (Current interaction)
-    live_placeholder = st.container()
-
-elif active_tab == "📊 Real-time Analytics":
-    st.title("📊 Service Performance Analytics")
-    st.markdown("---")
-    
-    analytics_file = "analytics.csv"
-    if os.path.exists(analytics_file):
-        import pandas as pd
-        df = pd.read_csv(analytics_file)
-        
-        # Metrics Row
-        m1, m2, m3, m4 = st.columns(4)
-        total_sessions = len(df)
-        avg_duration = df['duration_sec'].mean()
-        total_cost = df['total_cost_usd'].sum()
-        escalation_rate = (df['escalated'].astype(str).str.lower() == 'true').mean() * 100
-        
-        m1.metric("Total Sessions", f"{total_sessions:,}")
-        m2.metric("Avg Duration", f"{avg_duration:.1f}s")
-        m3.metric("Total LLM Cost", f"${total_cost:.4f}")
-        m4.metric("Escalation Rate", f"{escalation_rate:.1f}%")
-        
-        # Data table
-        st.subheader("Historical Records (Last 100)")
-        st.dataframe(df.tail(100).sort_values(by="end_time", ascending=False), 
-                     use_container_width=True,
-                     column_config={
-                         "total_cost_usd": st.column_config.NumberColumn("Cost ($)", format="$%.4f"),
-                         "duration_sec": st.column_config.NumberColumn("Duration", format="%.1fs")
-                     })
-        
-        if st.button("Refresh Dashboard"):
-            st.rerun()
-    else:
-        st.info("No analytics data available yet. Complete a conversation to see records here.")
-
-elif active_tab == "📚 Knowledge Base":
-    from app.ingest_utils import sync_pension_faqs_to_pinecone
-    
-    st.title("📚 Knowledge Base (FAQ Reference)")
-    st.markdown("---")
-    
-    st.caption("ℹ️ **Disclaimer**: The information provided here is based on **publicly available data** regarding insurance processes, HMRC regulations, and general policy benefits.")
-
-    # ── ⚡ Admin Sync Utility ─────────────────────────────────────────────────
-    with st.expander("⚡ Knowledge Base Administration", expanded=False):
-        st.write("Push the latest local FAQ updates to the Pinecone Cloud index.")
-        if st.button("Sync Knowledge Base to Cloud", use_container_width=True):
-            with st.spinner("Synchronizing... this may take a minute."):
-                try:
-                    msg = sync_pension_faqs_to_pinecone("docs/faq/pension_faqs.txt")
-                    st.success(msg)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Sync failed: {e}")
-    
-    # ── 🔍 FAQ Match Tester (New Utility) ─────────────────────────────────────
-    st.subheader("🔍 Search & Match Testing")
-    st.info("Test how the RAG engine scores queries. Confidence threshold is currently **0.75** (75%).")
-    
-    col_q, col_p = st.columns([3, 1])
-    test_query = col_q.text_input("Enter test query (e.g., 'annuity tax')", key="kb_search_input")
-    test_prod = col_p.selectbox("Product Type", ["annuity", "pension", "life", "all"], index=0)
-    
-    if st.button("Search Knowledge Base", use_container_width=True):
-        if test_query:
-            rag = RAGClient(st.session_state.ctx.cache)
-            threshold = float(os.getenv("RAG_SCORE_THRESHOLD", "0.75"))
-            
-            with st.spinner("Retrieving matches..."):
-                results = rag.query(
-                    question=test_query,
-                    product_type=None if test_prod == "all" else test_prod,
-                    session_id="kb_test_query",
-                    audit_logger=st.session_state.orchestrator._audit
+    # 2. Input Layer
+    if st.session_state.channel == "voice":
+        st.write("---")
+        if HAS_MIC:
+            cols = st.columns([1, 4])
+            with cols[0]:
+                audio_rec = mic_recorder(
+                    start_prompt="🎤 Start Speaking",
+                    stop_prompt="🛑 Stop",
+                    key='recorder'
                 )
-                
-                if results.chunks:
-                    st.write(f"### Top Matches for: *\"{test_query}\"*")
-                    for i, chunk in enumerate(results.chunks, 1):
-                        meets_threshold = chunk.score >= threshold
-                        status_color = "green" if meets_threshold else "red"
-                        status_icon = "✅" if meets_threshold else "❌"
-                        
-                        with st.container():
-                            st.markdown(f"""
-                            <div style="border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px; padding: 15px; margin-bottom: 10px; background-color: rgba(30, 41, 59, 0.4);">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="font-weight: bold; font-size: 1.1em;">Match #{i}: {chunk.section}</span>
-                                    <span style="color: {status_color}; font-weight: bold; border: 1px solid {status_color}; padding: 2px 8px; border-radius: 12px;">
-                                        {status_icon} Score: {chunk.score:.4f}
-                                    </span>
-                                </div>
-                                <p style="margin-top: 10px; font-style: italic;">"{chunk.text[:250]}..."</p>
-                                <div style="margin-top: 5px; font-size: 0.85em; opacity: 0.8;">
-                                    <b>Source:</b> {chunk.source_doc} | <b>Product:</b> {chunk.product_type}
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                else:
-                    st.warning("No matches found in the knowledge base.")
+            
+            if audio_rec:
+                import hashlib
+                audio_hash = hashlib.md5(audio_rec['bytes']).hexdigest() if audio_rec['bytes'] else None
+                if audio_hash and st.session_state.get('last_audio_hash') != audio_hash:
+                    st.session_state.last_audio_hash = audio_hash
+                    process_user_input(audio=audio_rec['bytes'])
         else:
-            st.warning("Please enter a query to test.")
-
-    st.markdown("---")
-    
-    # ── 📂 Browse All FAQs ────────────────────────────────────────────────────
-    st.subheader("📂 Browse All Knowledge Base Entries")
-    import json
-    faq_path = "docs/faq/pension_faqs.txt"
-    if os.path.exists(faq_path):
-        try:
-            with open(faq_path, 'r') as f:
-                faq_data = json.load(f)
-            
-            faqs = faq_data.get("faqs", [])
-            metadata = faq_data.get("metadata", {})
-            
-            # Metadata summary
-            st.caption(f"**Version:** {metadata.get('version')} | **Total Intents:** {metadata.get('usage_note')}")
-            
-            # Simple Category Filter
-            all_categories = sorted(list(set(f["category"] for f in faqs)))
-            selected_cat = st.selectbox("Filter by Category", ["All"] + all_categories)
-            
-            display_faqs = faqs if selected_cat == "All" else [f for f in faqs if f["category"] == selected_cat]
-            
-            # Group by category for cleaner display
-            for cat in (all_categories if selected_cat == "All" else [selected_cat]):
-                cat_faqs = [f for f in display_faqs if f["category"] == cat]
-                if not cat_faqs: continue
-                
-                with st.expander(f"📂 {cat} ({len(cat_faqs)})", expanded=(selected_cat != "All")):
-                    for f in cat_faqs:
-                        st.markdown(f"**Q: {f['question']}**")
-                        st.write(f"A: {f['answer']}")
-                        st.caption(f"**Intent:** `{f['intent']}` | **Tags:** {', '.join(f.get('context_tags', []))}")
-                        st.divider()
-        except Exception as e:
-            st.error(f"Error loading FAQ knowledge base: {e}")
-    else:
-        st.warning("Knowledge base file `pension_faqs.txt` not found.")
-
-# 3. GLOBAL Chat Input (Pinned to bottom if active tab is chat)
-if active_tab == "🛡️ Policy Assistant":
-    if prompt := st.chat_input("Type a message..."):
-        with live_placeholder:
-            # Show user message immediately
-            with st.chat_message("user"):
-                st.markdown(prompt)
-            
-            # Show spinner in the assistant's slot
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
-                    response = st.session_state.orchestrator.process_turn(
-                        st.session_state.ctx, 
-                        text_input=prompt
-                    )
-                    st.markdown(response)
+            st.warning("⚠️ Microphone component (`streamlit-mic-recorder`) is not installed. Using file upload.")
         
-        # 4. Save to history and refresh
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        st.session_state.messages.append({"role": "assistant", "content": response, 
-                                          "is_terminal": st.session_state.ctx.state in (AgentState.RESOLVED, AgentState.ESCALATED),
-                                          "esc_reason": st.session_state.ctx.escalation_reason})
-        st.rerun()
+        audio_file = st.file_uploader("Upload Audio Interaction (.wav, .mp3)", type=["wav", "mp3"])
+        if audio_file:
+            import hashlib
+            file_bytes = audio_file.read()
+            file_hash = hashlib.md5(file_bytes).hexdigest()
+            if st.session_state.get('last_file_hash') != file_hash:
+                st.session_state.last_file_hash = file_hash
+                process_user_input(audio=file_bytes)
 
-# End of script
+    if prompt := st.chat_input("Type your message here..."):
+        process_user_input(text=prompt)
+
+with tabs[1]:
+    st.title("📊 Call Statistics")
+    if os.path.exists("analytics.csv"):
+        try:
+            import pandas as pd
+            df = pd.read_csv("analytics.csv")
+            
+            # Key Metrics
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Total Calls", len(df))
+            esc_rate = (df['escalated'] == True).mean() * 100
+            m2.metric("Escalation Rate", f"{esc_rate:.1f}%")
+            m3.metric("Avg Duration", f"{df['duration_sec'].mean():.1f}s")
+            
+            st.divider()
+            
+            # Timeline
+            st.subheader("Call Volume Over Time")
+            df['start_time'] = pd.to_datetime(df['start_time'])
+            vol_over_time = df.set_index('start_time').resample('H').size()
+            st.line_chart(vol_over_time)
+            
+            # State Distribution
+            st.subheader("Final State Distribution")
+            state_counts = df['final_state'].value_counts()
+            st.bar_chart(state_counts)
+            
+        except Exception as e:
+            st.error(f"Could not load analytics: {e}")
+            st.info("Ensure `pandas` is installed in your environment.")
+    else:
+        st.warning("No analytics data found yet. Complete some calls to see statistics.")
+
+with tabs[2]:
+    st.title("📚 Knowledge Hub")
+    rag = RAGClient(st.session_state.ctx.cache)
+    
+    st.subheader("🔍 Search Knowledge Base")
+    search_mode = st.radio("Search Type", ["Text Match", "Semantic AI Search"], horizontal=True, label_visibility="collapsed")
+    search = st.text_input("Enter your query or keywords...", "")
+    
+    if search:
+        if search_mode == "Semantic AI Search":
+            with st.spinner("AI is searching vector database..."):
+                res = rag.query(search, session_id="ui_hub")
+                if res.chunks:
+                    st.success(f"Found {len(res.chunks)} relevant results.")
+                    for chunk in res.chunks:
+                        score = chunk.score * 100
+                        status = "✅ High" if score >= 75 else "⚠️ Medium" if score >= 60 else "🔴 Low"
+                        with st.expander(f"📌 {chunk.section} ({score:.1f}% Confidence - {status})"):
+                            st.write(chunk.text)
+                            st.caption(f"Source: {chunk.source_doc} | Brand: {chunk.heritage_brand or 'All'}")
+                else:
+                    st.warning("No relevant articles found with high enough confidence.")
+        else:
+            # Standard Text Match Filter
+            faqs = rag.list_all_faqs()
+            found = 0
+            for faq in faqs:
+                title = faq.get('question') or faq.get('section') or "Untitled"
+                content = faq.get('answer') or faq.get('text') or ""
+                if search.lower() in title.lower() or search.lower() in content.lower():
+                    found += 1
+                    p_type = (faq.get('product_type') or faq.get('category') or 'General').title()
+                    with st.expander(f"📌 {title} ({p_type})"):
+                        st.write(content)
+                        st.caption(f"Source: {faq.get('source_doc', 'Knowledge Base')}")
+            if found == 0:
+                st.info("No matching FAQs found. Try different keywords or switch to 'Semantic AI Search'.")
+    else:
+        # Default view: List all if no search
+        st.info("Enter a search term above or browse all FAQs below.")
+        faqs = rag.list_all_faqs()
+        for faq in faqs:
+            title = faq.get('question') or faq.get('section') or "Untitled"
+            content = faq.get('answer') or faq.get('text') or ""
+            p_type = (faq.get('product_type') or faq.get('category') or 'General').title()
+            with st.expander(f"📌 {title} ({p_type})"):
+                st.write(content)
+                st.caption(f"Source: {faq.get('source_doc', 'Knowledge Base')}")

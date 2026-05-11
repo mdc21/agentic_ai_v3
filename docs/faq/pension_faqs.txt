@@ -436,6 +436,15 @@
       "answer": "Yes, your annuity income is taxable as earned income. We pay your annuity after deducting any income tax due through the PAYE (Pay As You Earn) system, using the tax code supplied to us by HMRC. Your P60 will show the total tax deducted for each tax year.",
       "brand_tags": ["Standard Life", "Phoenix Life", "Scottish Widows", "Aviva", "Phoenix"],
       "context_tags": ["annuity tax", "taxable income", "PAYE", "HMRC", "annuity payment", "tax code", "annuity income", "what tax", "taxation"]
+    },
+    {
+      "id": "faq_054",
+      "category": "Surrender & Encashment",
+      "intent": "surrender_process",
+      "question": "What is the process to surrender my life insurance policy?",
+      "answer": "To surrender your life policy, you must: 1. Contact us to request a 'Surrender Value Quote'. 2. Complete the 'Surrender Request Form' which will be sent to you. 3. Provide proof of identity (if not already verified) and return the original policy document. 4. Once processed, funds are typically paid into your nominated bank account within 5-10 working days. Note: surrendering may result in the loss of valuable life cover and should be considered carefully.",
+      "brand_tags": ["All"],
+      "context_tags": ["surrender process", "how to surrender", "steps to cancel", "cash out process", "life policy surrender"]
     }
   ],
   "metadata": {

@@ -22,8 +22,10 @@ Setup for pgvector:
 """
 
 import hashlib
+import json
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -121,12 +123,33 @@ _MOCK_FAQ: list[dict] = [
 ]
 
 
+STOP_WORDS   = {"the", "is", "of", "and", "a", "to", "in", "it", "on", "for", "my", "your", "with", "what"}
+INTENT_WORDS = {"process", "how", "timeline", "steps", "way", "method", "calculate", "charges", "fees", "value", "tax", "taxable"}
+
 def _mock_score(query: str, chunk_text: str) -> float:
-    """Very simple keyword-overlap score for mock mode."""
-    q_words = set(query.lower().split())
-    c_words = set(chunk_text.lower().split())
-    overlap = q_words & c_words
-    return min(0.95, 0.5 + len(overlap) * 0.05)
+    """Weighted keyword-overlap score for mock mode (superior quality)."""
+    q_words = set(re.findall(r'\w+', query.lower()))
+    c_words = set(re.findall(r'\w+', chunk_text.lower()))
+    
+    # Stemming light
+    def stem(w): return w[:-1] if w.endswith('s') and len(w)>4 else w
+    q_stems = {stem(w) for w in q_words}
+    c_stems = {stem(w) for w in c_words}
+    
+    overlap = q_stems & c_stems
+    
+    # Calculate weighted overlap
+    score = 0.0
+    for s in overlap:
+        if s in INTENT_WORDS:
+            score += 0.25  # High priority for intent markers
+        elif s in STOP_WORDS:
+            score += 0.02  # Minimal weight for noise
+        else:
+            score += 0.12  # Standard weight for nouns/entities
+            
+    # Base score of 0.3 + accumulated weight, capped at 0.95
+    return min(0.95, 0.3 + score)
 
 
 # ── Client ────────────────────────────────────────────────────────────────────
@@ -138,6 +161,32 @@ class RAGClient:
         self._mock   = self._backend == "mock" or os.getenv("USE_MOCK_RAG", "false").lower() == "true"
         if not self._mock:
             self._init_backend()
+
+    def list_all_faqs(self) -> list[dict]:
+        """Return all FAQs (for Knowledge Hub UI) by loading from the source document."""
+        source_path = "docs/faq/pension_faqs.txt"
+        faqs = []
+        if os.path.exists(source_path):
+            try:
+                import json
+                with open(source_path, "r") as f:
+                    data = json.load(f)
+                    raw_faqs = data.get("faqs", [])
+                    # Normalize fields to match the RAGChunk expectations
+                    for r in raw_faqs:
+                        faqs.append({
+                            "chunk_id": r.get("id") or r.get("chunk_id"),
+                            "text": f"Question: {r.get('question','')}\nAnswer: {r.get('answer','')}",
+                            "section": r.get("category") or r.get("section") or "General",
+                            "source_doc": r.get("source_doc") or "pension_faqs.txt",
+                            "product_type": r.get("product_type") or "all",
+                            "heritage_brand": r.get("heritage_brand") or "all"
+                        })
+                    return faqs
+            except Exception as e:
+                logger.error("Failed to load FAQs from %s: %s", source_path, e)
+        
+        return _MOCK_FAQ
 
     def _init_backend(self) -> None:
         if self._backend == "chroma":
@@ -272,10 +321,14 @@ class RAGClient:
     # ── Mock retrieval ─────────────────────────────────────────────────────────
 
     def _mock_retrieve(self, question: str, product_type: Optional[str]) -> list[RAGChunk]:
-        candidates = [
-            c for c in _MOCK_FAQ
-            if c["product_type"] is None or c["product_type"] == product_type
-        ]
+        all_faqs = self.list_all_faqs()
+        
+        # STRICT FILTER: Only show chunks that match the product_type
+        candidates = []
+        for c in all_faqs:
+            c_type = c.get("product_type")
+            if not product_type or c_type == "all" or c_type == product_type:
+                candidates.append(c)
         scored = []
         for c in candidates:
             score = _mock_score(question, c["text"])

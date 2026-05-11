@@ -1,34 +1,21 @@
 """
 tts_client.py — Text-to-Speech adapter for the voice channel.
-
-For chat channel, TTS is never called (channel='chat').
-
-Free-tier options for development:
-  - Google Cloud Text-to-Speech: 1 million chars/month free
-    pip install google-cloud-texttospeech
-    Set TTS_BACKEND=google, GOOGLE_APPLICATION_CREDENTIALS=/path/key.json
-
-  - gTTS (offline-capable, simpler quality):
-    pip install gTTS
-    Set TTS_BACKEND=gtts
-
-  - Mock (returns empty bytes, logs the text):
-    Set USE_MOCK_TTS=true  (default in development)
+Supports Google Cloud, OpenAI, and gTTS backends.
 """
 
 import logging
 import os
+import io
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-TTS_BACKEND = os.getenv("TTS_BACKEND", "mock")
+TTS_BACKEND = os.getenv("TTS_BACKEND", "mock") # mock | google | openai | gtts
 
 
 class TTSClient:
     """
     Convert agent response text to audio bytes for the voice channel.
-    In chat mode, this client is never instantiated.
     """
 
     def __init__(self) -> None:
@@ -41,37 +28,58 @@ class TTSClient:
 
     def _init_backend(self) -> None:
         if TTS_BACKEND == "google":
-            try:
-                from google.cloud import texttospeech
-                self._client = texttospeech.TextToSpeechClient()
-                self._voice  = texttospeech.VoiceSelectionParams(
-                    language_code=os.getenv("TTS_LANGUAGE", "en-GB"),
-                    ssml_gender=texttospeech.SsmlVoiceGender.FEMALE,
-                )
-                self._audio_config = texttospeech.AudioConfig(
-                    audio_encoding=texttospeech.AudioEncoding.LINEAR16,
-                    sample_rate_hertz=16000,
-                )
-                logger.info("Google Cloud TTS client initialised")
-            except ImportError:
-                logger.warning("google-cloud-texttospeech not installed — mock TTS")
-                self._mock = True
-
+            self._init_google()
+        elif TTS_BACKEND == "openai":
+            self._init_openai()
         elif TTS_BACKEND == "gtts":
-            try:
-                import gtts  # noqa: F401  — just checking import
-                logger.info("gTTS client ready")
-            except ImportError:
-                logger.warning("gTTS not installed — mock TTS")
-                self._mock = True
+            self._init_gtts()
         else:
-            logger.warning("Unknown TTS_BACKEND %r — mock TTS", TTS_BACKEND)
+            logger.warning("Unknown TTS_BACKEND %r — falling back to mock", TTS_BACKEND)
+            self._mock = True
+
+    def _init_google(self) -> None:
+        try:
+            from google.cloud import texttospeech
+            self._client = texttospeech.TextToSpeechClient()
+            self._voice  = texttospeech.VoiceSelectionParams(
+                language_code=os.getenv("TTS_LANGUAGE", "en-GB"),
+                ssml_gender=texttospeech.SsmlVoiceGender.FEMALE,
+            )
+            self._audio_config = texttospeech.AudioConfig(
+                audio_encoding=texttospeech.AudioEncoding.LINEAR16,
+                sample_rate_hertz=16000,
+            )
+            logger.info("Google Cloud TTS client initialised")
+        except ImportError:
+            logger.warning("google-cloud-texttospeech not installed — falling back to mock TTS")
+            self._mock = True
+
+    def _init_openai(self) -> None:
+        try:
+            from openai import OpenAI
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                logger.warning("OPENAI_API_KEY missing. Falling back to mock TTS.")
+                self._mock = True
+                return
+            self._openai_client = OpenAI(api_key=api_key)
+            self._voice = os.getenv("OPENAI_TTS_VOICE", "nova")
+            logger.info("OpenAI TTS client initialised")
+        except ImportError:
+            logger.warning("openai not installed — falling back to mock TTS")
+            self._mock = True
+
+    def _init_gtts(self) -> None:
+        try:
+            import gtts
+            logger.info("gTTS client initialised")
+        except ImportError:
+            logger.warning("gTTS not installed — falling back to mock TTS")
             self._mock = True
 
     def synthesise(self, text: str, session_id: str = "") -> bytes:
         """
-        Convert text to audio bytes (LINEAR16 PCM, 16 kHz).
-        Returns empty bytes in mock mode.
+        Convert text to audio bytes.
         """
         if self._mock:
             logger.debug("[%s] TTS (mock): %r", session_id, text[:80])
@@ -79,6 +87,8 @@ class TTSClient:
 
         if TTS_BACKEND == "google":
             return self._google_synthesise(text)
+        elif TTS_BACKEND == "openai":
+            return self._openai_synthesise(text)
         elif TTS_BACKEND == "gtts":
             return self._gtts_synthesise(text)
         return b""
@@ -91,10 +101,22 @@ class TTSClient:
         )
         return response.audio_content
 
+    def _openai_synthesise(self, text: str) -> bytes:
+        try:
+            response = self._openai_client.audio.speech.create(
+                model="tts-1",
+                voice=self._voice,
+                input=text
+            )
+            # Returns binary response content
+            return response.content
+        except Exception as e:
+            logger.error("OpenAI TTS error: %s. Returning empty audio.", e)
+            return b""
+
     def _gtts_synthesise(self, text: str) -> bytes:
-        import io
         from gtts import gTTS
         buf = io.BytesIO()
-        tts = gTTS(text=text, lang=os.getenv("TTS_LANGUAGE", "en"))
+        tts = gTTS(text=text, lang=os.getenv("TTS_LANGUAGE", "en")[:2])
         tts.write_to_fp(buf)
         return buf.getvalue()

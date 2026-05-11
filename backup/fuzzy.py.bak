@@ -60,49 +60,6 @@ THRESHOLDS: dict[str, float] = {
     "adviser_postcode": 90.0,
 }
 
-# ── Address Abbreviations ──────────────────────────────────────────────────────
-ADDR_ABBREVS = {
-    "st": "street",
-    "rd": "road",
-    "ave": "avenue",
-    "dr": "drive",
-    "ln": "lane",
-    "cl": "close",
-    "ct": "court",
-    "pl": "place",
-    "sq": "square",
-    "cres": "crescent",
-    "way": "way",
-    "gdns": "gardens",
-    "pk": "park",
-    "hwy": "highway",
-    "blvd": "boulevard",
-    "ter": "terrace",
-    "mews": "mews",
-}
-
-# ── NATO Phonetics ─────────────────────────────────────────────────────────────
-NATO_ALPHABET = {
-    'a': 'Alpha', 'b': 'Bravo', 'c': 'Charlie', 'd': 'Delta', 'e': 'Echo',
-    'f': 'Foxtrot', 'g': 'Golf', 'h': 'Hotel', 'i': 'India', 'j': 'Juliet',
-    'k': 'Kilo', 'l': 'Lima', 'm': 'Mike', 'n': 'November', 'o': 'Oscar',
-    'p': 'Papa', 'q': 'Quebec', 'r': 'Romeo', 's': 'Sierra', 't': 'Tango',
-    'u': 'Uniform', 'v': 'Victor', 'w': 'Whiskey', 'x': 'X-ray', 'y': 'Yankee',
-    'z': 'Zulu',
-    '/': 'forward slash', '\\': 'backslash', '-': 'dash', '.': 'dot', ' ': 'space'
-}
-
-def to_nato(text: str) -> str:
-    """Convert text to NATO phonetic alphabet for voice confirmation."""
-    if not text: return ""
-    res = []
-    for char in text.lower():
-        if char in NATO_ALPHABET:
-            res.append(NATO_ALPHABET[char])
-        else:
-            res.append(char)
-    return " ".join(res)
-
 # ── Normalisation helpers ──────────────────────────────────────────────────────
 
 def _clean_voice_artifacts(text: str) -> str:
