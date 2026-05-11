@@ -122,7 +122,44 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# Main UI
+# --- Processing Logic ---
+def process_user_input(text=None, audio=None):
+    """
+    Unified handler for chat and voice inputs.
+    Updates session state messages and triggers orchestrator logic.
+    """
+    if not text and not audio:
+        return
+
+    # 1. Process via Orchestrator
+    with st.spinner("Agent is thinking..."):
+        user_text = None
+        if audio:
+            # First pass: Transcription for UI feedback
+            user_text = st.session_state.orchestrator.transcribe_turn(audio, st.session_state.ctx.session_id)
+            if not user_text:
+                st.warning("⚠️ Could not catch that. Please try speaking again.")
+                return
+            # Record user turn
+            st.session_state.messages.append({"role": "user", "content": user_text})
+        elif text:
+            user_text = text
+            st.session_state.messages.append({"role": "user", "content": user_text})
+
+        # Second pass: Full agent logic (RAG, SoR, Verification)
+        response = st.session_state.orchestrator.process_turn(
+            st.session_state.ctx, 
+            audio_bytes=audio, 
+            text_input=text,
+            user_text=user_text
+        )
+        
+        # Record assistant turn
+        st.session_state.messages.append({"role": "assistant", "content": response})
+        
+        # Final rerun to update UI components (sidebar, status, message list)
+        st.rerun()
+
 # Main UI
 tabs = st.tabs(["🛡️ AI Assistant", "📊 Call Statistics", "📚 Knowledge Hub"])
 
