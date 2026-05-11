@@ -10,7 +10,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-TTS_BACKEND = os.getenv("TTS_BACKEND", "mock") # mock | google | openai | gtts
+# TTS_BACKEND resolution moved to class __init__ for st.secrets compatibility
 
 
 class TTSClient:
@@ -19,22 +19,40 @@ class TTSClient:
     """
 
     def __init__(self) -> None:
-        self._mock = (
-            TTS_BACKEND == "mock"
-            or os.getenv("USE_MOCK_TTS", "false").lower() == "true"
-        )
+        # Resolve backend with st.secrets fallback
+        backend = os.getenv("TTS_BACKEND", "mock")
+        if backend == "mock":
+            try:
+                import streamlit as st
+                if hasattr(st, "secrets"):
+                    backend = st.secrets.get("TTS_BACKEND", "mock")
+            except ImportError:
+                pass
+        self._backend = backend
+
+        mock_flag = os.getenv("USE_MOCK_TTS", "false").lower() == "true"
+        # Check secrets for mock flag too
+        if not mock_flag:
+            try:
+                import streamlit as st
+                if hasattr(st, "secrets"):
+                    mock_flag = st.secrets.get("USE_MOCK_TTS", False)
+            except:
+                pass
+
+        self._mock = (self._backend == "mock" or mock_flag)
         if not self._mock:
             self._init_backend()
 
     def _init_backend(self) -> None:
-        if TTS_BACKEND == "google":
+        if self._backend == "google":
             self._init_google()
-        elif TTS_BACKEND == "openai":
+        elif self._backend == "openai":
             self._init_openai()
-        elif TTS_BACKEND == "gtts":
+        elif self._backend == "gtts":
             self._init_gtts()
         else:
-            logger.warning("Unknown TTS_BACKEND %r — falling back to mock", TTS_BACKEND)
+            logger.warning("Unknown TTS_BACKEND %r — falling back to mock", self._backend)
             self._mock = True
 
     def _init_google(self) -> None:

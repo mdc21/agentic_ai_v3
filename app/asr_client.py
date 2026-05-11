@@ -13,7 +13,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-ASR_BACKEND = os.getenv("ASR_BACKEND", "mock") # mock | google | openai
+# ASR_BACKEND resolution moved to class __init__ for st.secrets compatibility
 
 
 class ASRClient:
@@ -22,22 +22,40 @@ class ASRClient:
     """
 
     def __init__(self) -> None:
-        self._mock = (
-            ASR_BACKEND == "mock"
-            or os.getenv("USE_MOCK_ASR", "false").lower() == "true"
-        )
+        # Resolve backend with st.secrets fallback
+        backend = os.getenv("ASR_BACKEND", "mock")
+        if backend == "mock":
+            try:
+                import streamlit as st
+                if hasattr(st, "secrets"):
+                    backend = st.secrets.get("ASR_BACKEND", "mock")
+            except ImportError:
+                pass
+        self._backend = backend
+
+        mock_flag = os.getenv("USE_MOCK_ASR", "false").lower() == "true"
+        # Check secrets for mock flag too
+        if not mock_flag:
+            try:
+                import streamlit as st
+                if hasattr(st, "secrets"):
+                    mock_flag = st.secrets.get("USE_MOCK_ASR", False)
+            except:
+                pass
+
+        self._mock = (self._backend == "mock" or mock_flag)
         if not self._mock:
             self._init_backend()
 
     def _init_backend(self) -> None:
-        if ASR_BACKEND == "google":
+        if self._backend == "google":
             self._init_dialogflow()
-        elif ASR_BACKEND == "openai":
+        elif self._backend == "openai":
             self._init_openai()
-        elif ASR_BACKEND == "groq":
+        elif self._backend == "groq":
             self._init_groq()
         else:
-            logger.warning("Unknown ASR_BACKEND %r — falling back to mock", ASR_BACKEND)
+            logger.warning("Unknown ASR_BACKEND %r — falling back to mock", self._backend)
             self._mock = True
 
     def _init_dialogflow(self) -> None:
