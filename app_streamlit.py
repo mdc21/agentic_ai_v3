@@ -246,7 +246,7 @@ with tabs[1]:
             # Timeline
             st.subheader("Call Volume Over Time")
             df['start_time'] = pd.to_datetime(df['start_time'])
-            vol_over_time = df.set_index('start_time').resample('H').size()
+            vol_over_time = df.set_index('start_time').resample('h').size()
             st.line_chart(vol_over_time)
             
             # State Distribution
