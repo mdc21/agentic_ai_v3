@@ -80,7 +80,8 @@ class LLMClient:
         self.api_base = os.getenv("LLM_API_BASE_URL", "")
         self.groq_key = os.getenv("GROQ_API_KEY", "")
         self.groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-        self.groq_fallback = os.getenv("GROQ_FALLBACK_MODEL", "llama-3.1-8b-instant")
+        self.groq_fallback_1 = os.getenv("GROQ_FALLBACK_1", "llama-3.1-70b-versatile")
+        self.groq_fallback_2 = os.getenv("GROQ_FALLBACK_2", "mixtral-8x7b-32768")
         self.openai_key = os.getenv("OPENAI_API_KEY", "")
         self.anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
 
@@ -150,26 +151,36 @@ class LLMClient:
         ]
         
         prompt_txt = str(groq_messages)
-        active_model = self.groq_model
         
-        try:
-            resp = client.chat.completions.create(
-                model=active_model,
-                messages=groq_messages,
-                temperature=0.2,
-                max_tokens=1024,
-                response_format={"type": "json_object"}
-            )
-        except RateLimitError as e:
-            logger.warning("Groq model [%s] rate limited. Retrying with fallback [%s]...", active_model, self.groq_fallback)
-            active_model = self.groq_fallback
-            resp = client.chat.completions.create(
-                model=active_model,
-                messages=groq_messages,
-                temperature=0.2,
-                max_tokens=1024,
-                response_format={"type": "json_object"}
-            )
+        # Multi-stage model fallback
+        models_to_try = [self.groq_model, self.groq_fallback_1, self.groq_fallback_2, "llama-3.1-8b-instant"]
+        
+        resp = None
+        last_error = None
+        active_model = models_to_try[0]
+
+        for model in models_to_try:
+            try:
+                active_model = model
+                resp = client.chat.completions.create(
+                    model=active_model,
+                    messages=groq_messages,
+                    temperature=0.2,
+                    max_tokens=1024,
+                    response_format={"type": "json_object"}
+                )
+                break # Success!
+            except RateLimitError as e:
+                logger.warning("Groq model [%s] rate limited. Trying next fallback...", active_model)
+                last_error = e
+                continue
+            except Exception as e:
+                logger.error("Groq model [%s] failed with error: %s", active_model, e)
+                last_error = e
+                continue
+
+        if not resp:
+            raise last_error or Exception("Groq failed all models")
         
         raw_out = resp.choices[0].message.content.strip()
         itok = resp.usage.prompt_tokens

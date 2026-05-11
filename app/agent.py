@@ -35,7 +35,7 @@ from app.prompts import build_messages, SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 MAX_POLICY_RETRIES = 3
-LOOP_THRESHOLD     = int(os.getenv("LOOP_DETECTION_THRESHOLD", "3"))
+LOOP_THRESHOLD     = int(os.getenv("LOOP_DETECTION_THRESHOLD", "5"))
 
 
 class AgentState(Enum):
