@@ -690,8 +690,8 @@ class AgentOrchestrator:
         question = turn.rag_query or turn.intent or ""
         if not question: return None
         
-        rag = RAGClient(ctx.cache)
-        return rag.query(question, product_type=ctx.product_type,
+        # Use the persistent RAG client
+        return self._rag.query(question, product_type=ctx.product_type,
                         heritage_brand=ctx.heritage_brand,
                         session_id=ctx.session_id, audit_logger=self._audit)
 
