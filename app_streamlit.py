@@ -66,6 +66,7 @@ with st.sidebar:
     st.session_state.channel = channel.lower()
     
     st.divider()
+    show_asr_status()
     
     # Initialize Orchestrator based on channel
     if ("orchestrator" not in st.session_state 
@@ -138,7 +139,7 @@ def process_user_input(text=None, audio=None):
             # First pass: Transcription for UI feedback
             user_text = st.session_state.orchestrator.transcribe_turn(audio, st.session_state.ctx.session_id)
             if not user_text:
-                st.warning("⚠️ Could not catch that. Please try speaking again.")
+                st.warning("⚠️ **Transcription Failed.** Could not catch that. If you are in a noisy environment or using a weak microphone, please try again or switch to Chat mode.")
                 return
             # Record user turn
             st.session_state.messages.append({"role": "user", "content": user_text})
@@ -159,6 +160,15 @@ def process_user_input(text=None, audio=None):
         
         # Final rerun to update UI components (sidebar, status, message list)
         st.rerun()
+
+def show_asr_status():
+    """Helper to show ASR health in sidebar."""
+    if st.session_state.channel == "voice":
+        is_mock = st.session_state.orchestrator.asr_is_mock
+        if is_mock:
+            st.warning("⚠️ **ASR is in Mock Mode.** Audio interaction will not be transcribed. Please check your `GROQ_API_KEY` or `ASR_BACKEND` settings.")
+        else:
+            st.success("🎤 **ASR is Live (Groq)**")
 
 # Main UI
 tabs = st.tabs(["🛡️ AI Assistant", "📊 Call Statistics", "📚 Knowledge Hub"])

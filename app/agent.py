@@ -135,6 +135,10 @@ class AgentOrchestrator:
 
     # ── Entry point ───────────────────────────────────────────────────────────
 
+    @property
+    def asr_is_mock(self) -> bool:
+        return self._asr.is_mock if self._asr else True
+
     def transcribe_turn(self, audio_bytes: bytes, session_id: str) -> str:
         """Helper to transcribe audio before full processing for better UI feedback."""
         if not self._asr:

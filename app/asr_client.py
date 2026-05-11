@@ -105,6 +105,10 @@ class ASRClient:
             logger.warning("The 'groq' library is not installed. Please run 'pip install groq' to use Groq ASR. Falling back to mock.")
             self._mock = True
 
+    @property
+    def is_mock(self) -> bool:
+        return self._mock
+
     def transcribe(
         self,
         audio_bytes: Optional[bytes] = None,
@@ -115,9 +119,14 @@ class ASRClient:
         """
         Transcribe audio bytes OR return text_input directly (chat mode / mock).
         """
-        if self._mock or text_input is not None:
-            logger.debug("ASR (mock/text): %r", text_input)
-            return text_input or ""
+        if text_input is not None:
+            return text_input
+
+        if self._mock:
+            if audio_bytes:
+                logger.warning("ASR is in MOCK mode but received audio bytes. Returning placeholder.")
+                return "[Mock ASR: Audio received but backend is disabled]"
+            return ""
 
         if audio_bytes is None:
             raise ValueError("Either audio_bytes or text_input must be provided")
