@@ -114,6 +114,7 @@ class AgentOrchestrator:
         self._audit    = AuditLogger()
         self._contact  = ContactHistoryClient()
         self._tts      = self._init_tts(channel)
+        self._last_asr_latency = 0
 
     def _init_asr(self, channel):
         if channel == "voice":
@@ -143,7 +144,11 @@ class AgentOrchestrator:
         """Helper to transcribe audio before full processing for better UI feedback."""
         if not self._asr:
             return ""
+        
+        start_t = time.perf_counter()
         user_text = self._asr.transcribe(audio_bytes=audio_bytes, session_id=session_id)
+        self._last_asr_latency = int((time.perf_counter() - start_t) * 1000)
+        
         user_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", user_text)[:2000]
         return user_text
 
@@ -165,6 +170,10 @@ class AgentOrchestrator:
                 user_text = text_input or ""
             asr_latency = int((time.perf_counter() - asr_start) * 1000)
             user_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", user_text)[:2000]
+        else:
+            # Use the latency from the helper call
+            asr_latency = self._last_asr_latency
+            self._last_asr_latency = 0 # reset
         
         # Handle empty voice input
         if self._channel == "voice" and not user_text.strip():
