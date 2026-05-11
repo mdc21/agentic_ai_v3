@@ -113,11 +113,11 @@ class TTSClient:
             logger.debug("[%s] TTS (mock): %r", session_id, text[:80])
             return b""
 
-        if TTS_BACKEND == "google":
+        if self._backend == "google":
             return self._google_synthesise(text)
-        elif TTS_BACKEND == "openai":
+        elif self._backend == "openai":
             return self._openai_synthesise(text)
-        elif TTS_BACKEND == "gtts":
+        elif self._backend == "gtts":
             return self._gtts_synthesise(text)
         return b""
 

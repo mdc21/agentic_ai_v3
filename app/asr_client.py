@@ -162,12 +162,12 @@ class ASRClient:
         if audio_bytes is None:
             raise ValueError("Either audio_bytes or text_input must be provided")
 
-        logger.info("Transcribing audio using %s backend", ASR_BACKEND)
-        if ASR_BACKEND == "google":
+        logger.info("Transcribing audio using %s backend", self._backend)
+        if self._backend == "google":
             return self._google_transcribe(audio_bytes, session_id, language_code)
-        elif ASR_BACKEND == "openai":
+        elif self._backend == "openai":
             return self._openai_transcribe(audio_bytes)
-        elif ASR_BACKEND == "groq":
+        elif self._backend == "groq":
             return self._groq_transcribe(audio_bytes)
         
         return ""
