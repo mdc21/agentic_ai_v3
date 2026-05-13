@@ -397,8 +397,12 @@ class AgentOrchestrator:
             if ctx.channel == "chat":
                 # Short-circuit: skip the confirmation turn for chat
                 return self._platform_directory_check(ctx)
+            
+            from tools.fuzzy import to_nato
+            nato_policy = to_nato(ctx.policy_number)
             ctx.state = AgentState.CONFIRM_POLICY
-            return turn.caller_response
+            turn.caller_response = f"I think I heard that policy number as {nato_policy}. Is that correct?"
+            return self._speak(turn.caller_response, ctx)
 
         # Policy lookup chain
         if a == "policy_exist_platform_directory_check": return self._platform_directory_check(ctx)
