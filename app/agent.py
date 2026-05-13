@@ -78,6 +78,7 @@ class ConversationContext:
     heritage_brand: Optional[str]   = None
     sor_system: Optional[str]       = None   # SoR_1 | ...
     policy_flags: dict              = field(default_factory=dict)
+    metadata: dict                  = field(default_factory=dict)
     # Caller
     caller_type: Optional[CallerType] = None
     policy_number: Optional[str]      = None
