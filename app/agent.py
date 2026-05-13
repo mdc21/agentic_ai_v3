@@ -104,6 +104,8 @@ class ConversationContext:
     total_output_tokens: int = 0
     total_cost: float = 0.0
     turn_number: int = 0
+    # Per-turn log for UI statistics table
+    turn_log: list = field(default_factory=list)
 
 
 class AgentOrchestrator:
@@ -366,6 +368,16 @@ class AgentOrchestrator:
         )
 
         # Final wrap-up
+        ctx.turn_log.append({
+            "Turn": ctx.turn_number,
+            "State": ctx.state.value,
+            "Intent": turn.intent or "",
+            "Input Tokens": turn.input_tokens or 0,
+            "Output Tokens": turn.output_tokens or 0,
+            "Cost ($)": round(turn.token_cost or 0.0, 6),
+            "LLM Latency (ms)": llm_latency,
+            "Total Latency (ms)": total_latency,
+        })
         ctx.turn_history.append({"role": "assistant", "content": response})
         logger.info("[%s T%d] Agent (%s): %r", ctx.session_id, ctx.turn_number, ctx.state.value, response[:80])
         self._audit.log_user_bot_interaction(ctx.session_id, ctx.turn_number, user_text, response)

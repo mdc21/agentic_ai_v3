@@ -242,36 +242,86 @@ with tabs[0]:
 
 with tabs[1]:
     st.title("📊 Call Statistics")
+
+    # ── Live Session Token Table ───────────────────────────────────────────────
+    st.subheader("🔄 Current Session — Per-Turn Token Usage")
+
+    ctx = st.session_state.ctx
+    turn_log = getattr(ctx, "turn_log", [])
+
+    if turn_log:
+        import pandas as pd
+
+        df_turns = pd.DataFrame(turn_log)
+
+        # Summary metrics at the top
+        total_in  = df_turns["Input Tokens"].sum()
+        total_out = df_turns["Output Tokens"].sum()
+        total_cost = df_turns["Cost ($)"].sum()
+        avg_llm   = df_turns["LLM Latency (ms)"].mean()
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("📥 Total Input Tokens",  f"{total_in:,}")
+        c2.metric("📤 Total Output Tokens", f"{total_out:,}")
+        c3.metric("💰 Total Cost",          f"${total_cost:.4f}")
+        c4.metric("⚡ Avg LLM Latency",     f"{avg_llm:.0f} ms")
+
+        st.divider()
+
+        # Full per-turn table
+        st.dataframe(
+            df_turns.style
+                .format({"Cost ($)": "${:.6f}", "LLM Latency (ms)": "{:,.0f}", "Total Latency (ms)": "{:,.0f}"})
+                .background_gradient(subset=["LLM Latency (ms)"], cmap="YlOrRd")
+                .background_gradient(subset=["Input Tokens", "Output Tokens"], cmap="Blues"),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        # Latency chart
+        st.subheader("⚡ LLM Latency Per Turn")
+        st.bar_chart(df_turns.set_index("Turn")[["LLM Latency (ms)", "Total Latency (ms)"]])
+
+        # Token chart
+        st.subheader("🪙 Token Usage Per Turn")
+        st.bar_chart(df_turns.set_index("Turn")[["Input Tokens", "Output Tokens"]])
+
+    else:
+        st.info("No turns recorded yet in this session. Start a conversation to see live token statistics.")
+
+    st.divider()
+
+    # ── Historical Analytics (CSV) ─────────────────────────────────────────────
+    st.subheader("📁 Historical Call Analytics")
     if os.path.exists("analytics.csv"):
         try:
             import pandas as pd
             df = pd.read_csv("analytics.csv")
-            
+
             # Key Metrics
             m1, m2, m3 = st.columns(3)
             m1.metric("Total Calls", len(df))
             esc_rate = (df['escalated'] == True).mean() * 100
             m2.metric("Escalation Rate", f"{esc_rate:.1f}%")
             m3.metric("Avg Duration", f"{df['duration_sec'].mean():.1f}s")
-            
+
             st.divider()
-            
-            # Timeline
+
             st.subheader("Call Volume Over Time")
             df['start_time'] = pd.to_datetime(df['start_time'])
             vol_over_time = df.set_index('start_time').resample('h').size()
             st.line_chart(vol_over_time)
-            
-            # State Distribution
+
             st.subheader("Final State Distribution")
             state_counts = df['final_state'].value_counts()
             st.bar_chart(state_counts)
-            
+
         except Exception as e:
             st.error(f"Could not load analytics: {e}")
             st.info("Ensure `pandas` is installed in your environment.")
     else:
-        st.warning("No analytics data found yet. Complete some calls to see statistics.")
+        st.info("No historical analytics file found yet (`analytics.csv`). Complete some calls to build history.")
+
 
 with tabs[2]:
     st.header("Insurance Knowledge Hub")
