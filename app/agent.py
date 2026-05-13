@@ -404,7 +404,15 @@ class AgentOrchestrator:
             turn.caller_response = f"I think I heard that policy number as {nato_policy}. Is that correct?"
             return self._speak(turn.caller_response, ctx)
 
-        # Policy lookup chain
+        if a == "policy_exist_platform_directory_check" and ctx.channel == "voice":
+            # Emergency Catch: if LLM skipped confirmation, force it here
+            if ctx.caller_entities.policy_number and not ctx.metadata.get("policy_confirmed"):
+                from tools.fuzzy import to_nato
+                nato_policy = to_nato(ctx.caller_entities.policy_number)
+                ctx.state = AgentState.CONFIRM_POLICY
+                ctx.metadata["last_action"] = "confirm_policy_number"
+                response = f"I think I heard your policy number as {nato_policy}. Is that correct?"
+                return self._speak(response, ctx)
         if a == "policy_exist_platform_directory_check": return self._platform_directory_check(ctx)
         if a == "policy_exist_SOR_check":                return self._sor_check(ctx)
 
