@@ -270,12 +270,16 @@ with tabs[1]:
 
         # Full per-turn table
         st.dataframe(
-            df_turns.style
-                .format({"Cost ($)": "${:.6f}", "LLM Latency (ms)": "{:,.0f}", "Total Latency (ms)": "{:,.0f}"})
-                .background_gradient(subset=["LLM Latency (ms)"], cmap="YlOrRd")
-                .background_gradient(subset=["Input Tokens", "Output Tokens"], cmap="Blues"),
+            df_turns,
             use_container_width=True,
             hide_index=True,
+            column_config={
+                "Input Tokens":       st.column_config.ProgressColumn("Input Tokens",  min_value=0, max_value=int(df_turns["Input Tokens"].max() or 1), format="%d"),
+                "Output Tokens":      st.column_config.ProgressColumn("Output Tokens", min_value=0, max_value=int(df_turns["Output Tokens"].max() or 1), format="%d"),
+                "LLM Latency (ms)":   st.column_config.ProgressColumn("LLM Latency (ms)",   min_value=0, max_value=int(df_turns["LLM Latency (ms)"].max() or 1), format="%d ms"),
+                "Total Latency (ms)": st.column_config.ProgressColumn("Total Latency (ms)", min_value=0, max_value=int(df_turns["Total Latency (ms)"].max() or 1), format="%d ms"),
+                "Cost ($)":           st.column_config.NumberColumn("Cost ($)", format="$%.6f"),
+            },
         )
 
         # Latency chart
