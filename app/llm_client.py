@@ -52,8 +52,8 @@ class LLMClient:
     def __init__(self):
         self._load_config()
         self._backends = []
-        if self.groq_key:      self._backends.append("groq")
         if self.openai_key or self.api_base: self._backends.append("openai")
+        if self.groq_key:      self._backends.append("groq")
         if self.anthropic_key: self._backends.append("anthropic")
         
         if not self._backends:
