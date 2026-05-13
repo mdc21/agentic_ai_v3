@@ -321,6 +321,9 @@ class RAGClient:
         
         latency_ms = int((time.perf_counter() - start_t) * 1000)
 
+        # Define answerable threshold
+        is_answerable = top_score >= 0.55
+        
         if audit_logger:
             audit_logger.log_rag_query(
                 session_id, query_hash, product_type,
