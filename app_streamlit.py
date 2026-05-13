@@ -140,9 +140,15 @@ with st.sidebar:
         resp = st.session_state.orchestrator.process_turn(st.session_state.ctx, text_input="hello")
         st.session_state.messages.append({"role": "assistant", "content": resp})
 
-    # Now show ASR status for the correctly initialized orchestrator
-    show_asr_status()
-
+    # Dynamic System Status
+    st.divider()
+    st.markdown("### 🧠 System Status")
+    active_llm = st.session_state.ctx.active_model or ("OpenAI" if os.getenv("OPENAI_API_KEY") else "Groq")
+    st.info(f"**Brain:** {active_llm}")
+    st.success("🎤 ASR: Groq-Whisper")
+    st.success("🔊 TTS: OpenAI-TTS-1")
+    
+    st.divider()
     st.write(f"**Session ID:** `{st.session_state.ctx.session_id}`")
     
     # State Display
