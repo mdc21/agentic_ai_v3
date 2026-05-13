@@ -391,6 +391,8 @@ class AgentOrchestrator:
         user_text = turn.user_text or ""
         is_affirmative = turn.intent in ("affirmative", "yes", "confirm") or "yes" in user_text.lower() or "correct" in user_text.lower()
         if is_affirmative:
+            # Reset loop count on confirmation to prevent "duplicate action" triggers
+            ctx._loop_count = 0
             if ctx.metadata.get("last_action") == "confirm_policy_number":
                 ctx.metadata["policy_confirmed"] = True
             elif ctx.metadata.get("last_action") == "confirm_postcode":
