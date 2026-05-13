@@ -473,12 +473,31 @@ class AgentOrchestrator:
             # Ensure state transition to verification if we were in identification phase
             if ctx.state in (AgentState.IDENTIFY_CALLER, AgentState.SOR_CHECK, AgentState.PLATFORM_DIRECTORY_CHECK):
                 ctx.state = AgentState.VERIFY_POLICYHOLDER
-            
+
             # Special case for FA: they need to identify PH first, but we are now in VERIFY_POLICYHOLDER state
             if ctx.caller_type == CallerType.FA_REPRESENTATIVE and a == "request_verification":
                 return self._handle_caller_type(ctx, turn)
 
+            # NATO postcode emergency catch: if postcode just captured but not yet phonetically confirmed,
+            # intercept here BEFORE returning to the LLM response.
+            if a == "continue_verification" and ctx.channel == "voice":
+                raw_postcode = (
+                    ctx.caller_entities.adviser_postcode if ctx.state == AgentState.VERIFY_ADVISER
+                    else ctx.caller_entities.postcode
+                ) or ""
+                if raw_postcode and not ctx.metadata.get(
+                    "adviser_postcode_confirmed" if ctx.state == AgentState.VERIFY_ADVISER else "postcode_confirmed"
+                ):
+                    from tools.fuzzy import to_nato
+                    nato_postcode = to_nato(raw_postcode)
+                    ctx.metadata["last_action"] = "confirm_postcode"
+                    logger.info("[%s T%d] NATO postcode intercept: %r → %r",
+                                ctx.session_id, ctx.turn_number, raw_postcode, nato_postcode)
+                    response = f"I think I heard your postcode as {nato_postcode}. Is that correct?"
+                    return self._speak(response, ctx)
+
             return turn.caller_response
+
         if a == "confirm_postcode":
             # Check if user just confirmed it
             if turn.intent in ("affirmative", "yes", "confirm") or "yes" in user_text.lower():
@@ -496,22 +515,12 @@ class AgentOrchestrator:
                 raw_postcode = ctx.caller_entities.adviser_postcode or ""
             else:
                 raw_postcode = ctx.caller_entities.postcode or ""
-                
+
             nato_postcode = to_nato(raw_postcode)
             turn.caller_response = f"I think I heard that postcode as {nato_postcode}. Is that correct?"
             ctx.metadata["last_action"] = "confirm_postcode"
             return self._speak(turn.caller_response, ctx)
 
-        if a == "continue_verification":
-            # Emergency catch: if LLM skipped confirmation, force it here
-            if ctx.caller_entities.postcode and not ctx.metadata.get("postcode_confirmed"):
-                from tools.fuzzy import to_nato
-                nato_postcode = to_nato(ctx.caller_entities.postcode)
-                ctx.metadata["last_action"] = "confirm_postcode"
-                response = f"I think I heard your postcode as {nato_postcode}. Is that correct?"
-                return self._speak(response, ctx)
-
-            return self._speak(turn.caller_response, ctx)
         if a == "compare_verification":    return self._verify_policyholder(ctx, turn)
 
         # Adviser verification
