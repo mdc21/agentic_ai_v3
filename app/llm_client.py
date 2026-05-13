@@ -99,6 +99,11 @@ class LLMClient:
         except:
             pass
 
+        # Clean keys
+        if self.groq_key: self.groq_key = self.groq_key.strip().strip('"').strip("'")
+        if self.openai_key: self.openai_key = self.openai_key.strip().strip('"').strip("'")
+        if self.anthropic_key: self.anthropic_key = self.anthropic_key.strip().strip('"').strip("'")
+
     def call_with_messages(self, messages: list) -> AgentTurn:
         errors = []
         for backend in self._backends:
