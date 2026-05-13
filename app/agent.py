@@ -216,8 +216,9 @@ class AgentOrchestrator:
         import asyncio
         async def run_parallel():
             rag_task = None; sor_task = None
-            if turn.rag_query or turn.action == "rag_query":
-                rag_task = asyncio.to_thread(self._get_rag_context, ctx, turn)
+            rag_question = (turn.rag_query or "").strip() if turn.rag_query else ""
+            if rag_question or turn.action == "rag_query":
+                rag_task = asyncio.to_thread(self._get_rag_context, ctx, rag_question)
             if turn.action in ("policy_valuation","policy_exist_SOR_check","policy_basic_details",
                     "party_role_address_details","policy_benefits","policy_status", "return_details"):
                 sor_task = asyncio.to_thread(self._get_sor_data, ctx, turn.action, turn)
@@ -758,7 +759,9 @@ class AgentOrchestrator:
     # ── Context Gatherers (Internal) ──────────────────────────────────────────
     
     def _get_rag_context(self, ctx: ConversationContext, question: str) -> Optional[RAGResult]:
-        if not question or not self._rag: return None
+        if not self._rag: return None
+        question = (question or "").strip()
+        if not question: return None
         
         # Use the persistent RAG client
         return self._rag.query(question, product_type=ctx.product_type,
