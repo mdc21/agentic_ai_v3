@@ -393,9 +393,14 @@ class AgentOrchestrator:
                 return self._escalate(ctx, "POLICY_CAPTURE_RETRIES_EXCEEDED")
             ctx.state = AgentState.COLLECT_POLICY; return turn.caller_response
         if a == "confirm_policy_number":
+            # 1. Check if user just confirmed it
+            if turn.intent in ("affirmative", "yes", "confirm") or "yes" in user_text.lower():
+                 ctx.metadata["policy_confirmed"] = True
+                 return self._platform_directory_check(ctx)
+            
+            # 2. Otherwise, perform NATO readback
             ctx.policy_number = ctx.caller_entities.policy_number
             if ctx.channel == "chat":
-                # Short-circuit: skip the confirmation turn for chat
                 return self._platform_directory_check(ctx)
             
             from tools.fuzzy import to_nato
