@@ -37,6 +37,7 @@ class AgentTurn:
     duress_signal: bool = False
     caller_response: str = ""
     confidence: float = 1.0
+    user_text: str = "" # Raw user input
     raw: dict = field(default_factory=dict)
     prompt_used: Optional[str] = None
     raw_response: Optional[str] = None

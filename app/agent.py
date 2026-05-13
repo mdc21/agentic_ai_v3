@@ -192,6 +192,7 @@ class AgentOrchestrator:
         
         llm_start = time.perf_counter()
         turn: AgentTurn = self._llm.call_with_messages(messages)
+        turn.user_text = user_text
         llm_latency = int((time.perf_counter() - llm_start) * 1000)
         
         ctx.active_model = turn.model_name
