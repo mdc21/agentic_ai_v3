@@ -385,6 +385,18 @@ class AgentOrchestrator:
                     rag_result: Optional[RAGResult] = None,
                     sor_data: Optional[dict] = None) -> str:
         a = turn.action
+        # --- 0. Global Affirmative Detection ---
+        # If the user says Yes/Correct to a previous NATO confirmation turn, set the flag immediately.
+        user_text = turn.user_text or ""
+        is_affirmative = turn.intent in ("affirmative", "yes", "confirm") or "yes" in user_text.lower() or "correct" in user_text.lower()
+        if is_affirmative:
+            if ctx.metadata.get("last_action") == "confirm_policy_number":
+                ctx.metadata["policy_confirmed"] = True
+            elif ctx.metadata.get("last_action") == "confirm_postcode":
+                if ctx.state == AgentState.VERIFY_ADVISER:
+                    ctx.metadata["adviser_postcode_confirmed"] = True
+                else:
+                    ctx.metadata["postcode_confirmed"] = True
 
         if a == "request_policy_number": ctx.state = AgentState.COLLECT_POLICY; return turn.caller_response
         if a == "retry_policy_number":
