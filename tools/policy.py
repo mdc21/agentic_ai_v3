@@ -220,6 +220,8 @@ class PolicyAPIClient:
 
     def get_policy_details(self, policy_number: str) -> Optional[PolicyRecord]:
         """Return full policy record including all parties, or None if not found."""
+        if not policy_number:
+            return None
         if self._mock:
             # First check exact hard-coded records
             normalised = policy_number.upper().replace(" ", "")
