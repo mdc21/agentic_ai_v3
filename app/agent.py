@@ -116,7 +116,8 @@ class AgentOrchestrator:
         self._contact  = ContactHistoryClient()
         self._tts      = self._init_tts(channel)
         try:
-            self._rag = RAGClient()
+            from app.session_cache import SessionCache
+            self._rag = RAGClient(session_cache=SessionCache())
         except Exception as e:
             logger.error("Failed to initialize RAGClient: %s", e)
             self._rag = None
