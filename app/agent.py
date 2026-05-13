@@ -432,10 +432,10 @@ class AgentOrchestrator:
             ctx.metadata["last_action"] = "confirm_postcode"
             return self._speak(turn.caller_response, ctx)
 
-        if a == "continue_verification":
-            # Postcode confirmation trigger: if we just got a postcode and haven't confirmed it yet
+        if a == "continue_verification" or (ctx.caller_entities.postcode and not ctx.metadata.get("postcode_confirmed")):
+            # FORCE HALT for postcode confirmation
             if ctx.caller_entities.postcode and not ctx.metadata.get("postcode_confirmed"):
-                # If the user JUST said Yes to the confirmation
+                # If the user JUST said Yes to the confirmation in this turn
                 if turn.intent in ("affirmative", "yes", "confirm"):
                     ctx.metadata["postcode_confirmed"] = True
                     return self._speak(turn.caller_response, ctx)
@@ -443,7 +443,7 @@ class AgentOrchestrator:
                 from tools.fuzzy import to_nato
                 nato_postcode = to_nato(ctx.caller_entities.postcode)
                 ctx.metadata["last_action"] = "confirm_postcode"
-                response = f"I think I heard {nato_postcode}. Is that correct?"
+                response = f"I think I heard your postcode as {nato_postcode}. Is that correct?"
                 return self._speak(response, ctx)
 
             # Normal verification flow...
