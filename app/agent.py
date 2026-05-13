@@ -115,7 +115,11 @@ class AgentOrchestrator:
         self._audit    = AuditLogger()
         self._contact  = ContactHistoryClient()
         self._tts      = self._init_tts(channel)
-        self._rag      = RAGClient()
+        try:
+            self._rag = RAGClient()
+        except Exception as e:
+            logger.error("Failed to initialize RAGClient: %s", e)
+            self._rag = None
         self._last_asr_latency = 0
 
     def _init_asr(self, channel):
@@ -752,10 +756,8 @@ class AgentOrchestrator:
 
     # ── Context Gatherers (Internal) ──────────────────────────────────────────
     
-    def _get_rag_context(self, ctx: ConversationContext, turn: AgentTurn):
-        """Fetch FAQ context only when strictly needed."""
-        question = turn.rag_query or turn.intent or ""
-        if not question: return None
+    def _get_rag_context(self, ctx: ConversationContext, question: str) -> Optional[RAGResult]:
+        if not question or not self._rag: return None
         
         # Use the persistent RAG client
         return self._rag.query(question, product_type=ctx.product_type,
