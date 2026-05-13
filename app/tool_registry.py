@@ -241,7 +241,16 @@ class ToolRegistry:
             logger.error("[%s] SOR API error for %r: %s", session_id, config.action_intent, exc)
             return None
 
-    @staticmethod
-    def _filter_fields(response: dict, fields: list[str]) -> dict:
-        """Return only the specified fields from a response dict."""
-        return {k: response[k] for k in fields if k in response}
+    def _filter_fields(self, response: Any, fields: list) -> dict:
+        if not response: return {}
+        # Convert to dict if dataclass
+        data = response
+        if hasattr(data, "__dataclass_fields__"):
+            from dataclasses import asdict
+            data = asdict(data)
+        elif not isinstance(data, dict):
+            try: data = vars(data)
+            except: pass
+            
+        if not isinstance(data, dict): return {}
+        return {k: data[k] for k in fields if k in data}
