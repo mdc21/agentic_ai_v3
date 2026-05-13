@@ -417,6 +417,36 @@ class AgentOrchestrator:
                 return self._handle_caller_type(ctx, turn)
 
             return turn.caller_response
+        if a == "confirm_postcode":
+            # If user said "Yes" to a previous confirm_postcode, mark it done
+            if turn.intent in ("affirmative", "yes", "confirm") or "yes" in turn.caller_response.lower():
+                 ctx.metadata["postcode_confirmed"] = True
+                 # Re-evaluate turn to move forward
+                 return self._dispatch_v2(ctx, turn, rag_result, sor_data)
+
+            from tools.fuzzy import to_nato
+            raw_postcode = ctx.caller_entities.postcode or ""
+            nato_postcode = to_nato(raw_postcode)
+            turn.caller_response = f"Just to confirm, I heard your postcode as {nato_postcode}. Is that correct?"
+            ctx.metadata["last_action"] = "confirm_postcode"
+            return self._speak(turn.caller_response, ctx)
+
+        if a == "continue_verification":
+            # Postcode confirmation trigger: if we just got a postcode and haven't confirmed it yet
+            if ctx.caller_entities.postcode and not ctx.metadata.get("postcode_confirmed"):
+                # If the user JUST said Yes to the confirmation
+                if turn.intent in ("affirmative", "yes", "confirm"):
+                    ctx.metadata["postcode_confirmed"] = True
+                    return self._speak(turn.caller_response, ctx)
+                
+                from tools.fuzzy import to_nato
+                nato_postcode = to_nato(ctx.caller_entities.postcode)
+                ctx.metadata["last_action"] = "confirm_postcode"
+                response = f"I think I heard {nato_postcode}. Is that correct?"
+                return self._speak(response, ctx)
+
+            # Normal verification flow...
+            return self._speak(turn.caller_response, ctx)
         if a == "compare_verification":    return self._verify_policyholder(ctx, turn)
 
         # Adviser verification
