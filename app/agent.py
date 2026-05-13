@@ -419,34 +419,28 @@ class AgentOrchestrator:
 
             return turn.caller_response
         if a == "confirm_postcode":
-            # If user said "Yes" to a previous confirm_postcode, mark it done
-            if turn.intent in ("affirmative", "yes", "confirm") or "yes" in turn.caller_response.lower():
+            # Check if user just confirmed it
+            if turn.intent in ("affirmative", "yes", "confirm") or "yes" in user_text.lower():
                  ctx.metadata["postcode_confirmed"] = True
-                 # Re-evaluate turn to move forward
-                 return self._dispatch_v2(ctx, turn, rag_result, sor_data)
+                 # Force the LLM to move to the next field (e.g. DOB)
+                 return self.process_turn(ctx, text_input="Great, thank you. What is your date of birth?")
 
             from tools.fuzzy import to_nato
             raw_postcode = ctx.caller_entities.postcode or ""
             nato_postcode = to_nato(raw_postcode)
-            turn.caller_response = f"Just to confirm, I heard your postcode as {nato_postcode}. Is that correct?"
+            turn.caller_response = f"I think I heard your postcode as {nato_postcode}. Is that correct?"
             ctx.metadata["last_action"] = "confirm_postcode"
             return self._speak(turn.caller_response, ctx)
 
-        if a == "continue_verification" or (ctx.caller_entities.postcode and not ctx.metadata.get("postcode_confirmed")):
-            # FORCE HALT for postcode confirmation
+        if a == "continue_verification":
+            # Emergency catch: if LLM skipped confirmation, force it here
             if ctx.caller_entities.postcode and not ctx.metadata.get("postcode_confirmed"):
-                # If the user JUST said Yes to the confirmation in this turn
-                if turn.intent in ("affirmative", "yes", "confirm"):
-                    ctx.metadata["postcode_confirmed"] = True
-                    return self._speak(turn.caller_response, ctx)
-                
                 from tools.fuzzy import to_nato
                 nato_postcode = to_nato(ctx.caller_entities.postcode)
                 ctx.metadata["last_action"] = "confirm_postcode"
                 response = f"I think I heard your postcode as {nato_postcode}. Is that correct?"
                 return self._speak(response, ctx)
 
-            # Normal verification flow...
             return self._speak(turn.caller_response, ctx)
         if a == "compare_verification":    return self._verify_policyholder(ctx, turn)
 

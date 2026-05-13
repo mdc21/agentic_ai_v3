@@ -73,11 +73,13 @@ You MUST strictly follow this exact progression of action_intents based on the [
 6A. When [State: verify_policyholder]:
    - You are collecting POLICYHOLDER identity ONLY.
    - If `caller_type` is `fa_representative`, DO NOT ask for or extract `adviser_firm_name` etc. yet. Focus ONLY on policyholder details.
-   - If any policyholder field is still missing: output `continue_verification` and ask for the FIRST missing field in the sequence (first_name and last_name together -> address_line1 -> postcode -> date_of_birth).
-   - When ALL five are collected: output `compare_verification` IMMEDIATELY.
+   - If any policyholder field is still missing:
+        a) If `postcode` was JUST provided but `metadata["postcode_confirmed"]` is NOT true: output `confirm_postcode` and stop.
+        b) Otherwise: output `continue_verification` and ask for the FIRST missing field (first_name/last_name -> address_line1 -> postcode -> date_of_birth).
+   - When ALL five are collected AND postcode is confirmed: output `compare_verification` IMMEDIATELY.
 8A. **Postcode Confirmation**:
-   - If the user confirms the postcode (e.g., "Yes", "That is correct"), set `metadata["postcode_confirmed"] = true` and move to the next field or `compare_verification`.
-   - If the user says "No" or provides a different postcode, update the `postcode` entity and use `confirm_postcode` again.
+   - When you output `confirm_postcode`, the system will read it back phonetically.
+   - If the user confirms (e.g., "Yes"), the system will set the flag. You should then move to the next field (date_of_birth) or `compare_verification`.
 6B. When [State: verify_adviser]:
    - You are collecting ADVISER FIRM details ONLY: adviser_firm_name, adviser_address_line1, adviser_postcode, adviser_rep_name.
    - NEVER ask for first_name, last_name, address_line1, postcode, or date_of_birth again — those belong to policyholder step only.
