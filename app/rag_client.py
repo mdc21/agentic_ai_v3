@@ -316,17 +316,29 @@ class RAGClient:
 
         self._cache.set(cache_key, chunks)
         answerable = any(c.score >= threshold for c in chunks)
+        self._cache.set(query_hash, chunks)
+        top_score = chunks[0].score if chunks else 0.0
         
         latency_ms = int((time.perf_counter() - start_t) * 1000)
 
         if audit_logger:
-            audit_logger.log_rag_query(session_id, query_hash, product_type,
-                                       [c.score for c in chunks], hit=False,
-                                       question=question, answerable=answerable,
-                                       context="\n\n".join(c.text for c in chunks), latency_ms=latency_ms)
+            audit_logger.log_rag_query(
+                session_id, query_hash, product_type,
+                [c.score for c in chunks], hit=False,
+                question=question, answerable=is_answerable,
+                context="\n\n".join(c.text for c in chunks), latency_ms=latency_ms
+            )
 
-        return RAGResult(query=question, query_hash=query_hash,
-                         chunks=chunks, cache_hit=False, answerable=answerable)
+        if not chunks:
+            logger.warning("[%s] RAG: No chunks found for query: %r", session_id, question)
+            return RAGResult(query=question, answerable=False, context="No relevant information found in knowledge base.")
+
+        return RAGResult(
+            query=question,
+            chunks=chunks[:3],
+            answerable=is_answerable,
+            confidence=top_score
+        )
 
     # ── Mock retrieval ─────────────────────────────────────────────────────────
 
