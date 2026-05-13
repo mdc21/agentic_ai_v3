@@ -214,23 +214,33 @@ class AgentOrchestrator:
             return self._speak(response, ctx)
 
         # 3. Parallel Retrieval (Data + FAQ)
+        # NOTE: We use ThreadPoolExecutor instead of asyncio.run() because Streamlit Cloud
+        # runs uvloop which already has a running event loop — asyncio.run() would crash.
         retrieval_start = time.perf_counter()
-        import asyncio
-        async def run_parallel():
-            rag_task = None; sor_task = None
-            rag_question = (turn.rag_query or "").strip() if turn.rag_query else ""
-            if rag_question or turn.action == "rag_query":
-                rag_task = asyncio.to_thread(self._get_rag_context, ctx, rag_question)
-            if turn.action in ("policy_valuation","policy_exist_SOR_check","policy_basic_details",
-                    "party_role_address_details","policy_benefits","policy_status", "return_details"):
-                sor_task = asyncio.to_thread(self._get_sor_data, ctx, turn.action, turn)
-            
-            results = await asyncio.gather(*[t for t in (rag_task, sor_task) if t is not None])
-            res_rag = results[0] if rag_task else None
-            res_sor = results[1] if (rag_task and sor_task) else (results[0] if sor_task else None)
-            return res_rag, res_sor
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        rag_result, sor_data = asyncio.run(run_parallel())
+        rag_result = None
+        sor_data   = None
+        futures    = {}
+        rag_question = (turn.rag_query or "").strip() if turn.rag_query else ""
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            if rag_question or turn.action == "rag_query":
+                futures["rag"] = pool.submit(self._get_rag_context, ctx, rag_question)
+            if turn.action in ("policy_valuation", "policy_exist_SOR_check", "policy_basic_details",
+                    "party_role_address_details", "policy_benefits", "policy_status", "return_details"):
+                futures["sor"] = pool.submit(self._get_sor_data, ctx, turn.action, turn)
+
+            for key, fut in futures.items():
+                try:
+                    result = fut.result(timeout=15)
+                    if key == "rag":
+                        rag_result = result
+                    else:
+                        sor_data = result
+                except Exception as e:
+                    logger.warning("[%s] Retrieval task '%s' failed: %s", ctx.session_id, key, e)
+
         retrieval_latency = int((time.perf_counter() - retrieval_start) * 1000)
 
         # 4. Merge entities, update caller type and intent BEFORE dispatch
