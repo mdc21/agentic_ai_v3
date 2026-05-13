@@ -115,6 +115,7 @@ class AgentOrchestrator:
         self._audit    = AuditLogger()
         self._contact  = ContactHistoryClient()
         self._tts      = self._init_tts(channel)
+        self._rag      = RAGClient()
         self._last_asr_latency = 0
 
     def _init_asr(self, channel):
