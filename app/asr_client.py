@@ -29,8 +29,8 @@ class ASRClient:
                 import streamlit as st
                 if hasattr(st, "secrets"):
                     backend = st.secrets.get("ASR_BACKEND", "mock")
-            except ImportError:
-                pass
+            except Exception:
+                pass  # not running inside Streamlit (e.g. pytest) — use env var value
         self._backend = backend
 
         mock_flag = os.getenv("USE_MOCK_ASR", "false").lower() == "true"
@@ -40,8 +40,8 @@ class ASRClient:
                 import streamlit as st
                 if hasattr(st, "secrets"):
                     mock_flag = st.secrets.get("USE_MOCK_ASR", False)
-            except:
-                pass
+            except Exception:
+                pass  # not running inside Streamlit (e.g. pytest)
 
         self._mock = (self._backend == "mock" or mock_flag)
         if not self._mock:
