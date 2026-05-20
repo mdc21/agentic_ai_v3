@@ -173,8 +173,13 @@ class AgentOrchestrator:
         if user_text is None:
             asr_start = time.perf_counter()
             if self._asr:
-                user_text = self._asr.transcribe(audio_bytes=audio_bytes, text_input=text_input,
-                                                 session_id=ctx.session_id)
+                try:
+                    user_text = self._asr.transcribe(audio_bytes=audio_bytes, text_input=text_input,
+                                                     session_id=ctx.session_id)
+                except Exception as asr_exc:
+                    logger.error("[%s] ASR transcription failed: %s — prompting caller to retry",
+                                 ctx.session_id, asr_exc)
+                    user_text = ""
             else:
                 user_text = text_input or ""
             asr_latency = int((time.perf_counter() - asr_start) * 1000)

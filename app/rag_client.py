@@ -53,10 +53,12 @@ class RAGChunk:
 @dataclass
 class RAGResult:
     query:        str
-    query_hash:   str
+    query_hash:   str = ""
     chunks:       list[RAGChunk] = field(default_factory=list)
     cache_hit:    bool = False
     answerable:   bool = True     # False if no chunk meets threshold
+    confidence:   float = 0.0    # top-chunk score (0.0–1.0)
+    context:      str = ""       # pre-formatted context string for fallback messages
 
     def context_for_llm(self) -> str:
         """Format retrieved chunks as a context block for the LLM prompt."""
