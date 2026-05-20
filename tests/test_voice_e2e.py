@@ -47,14 +47,41 @@ def mock_llm(action: str, intent: str = "", caller_response: str = "test respons
 # ── Happy Path ────────────────────────────────────────────────────────────────
 
 class TestVoiceHappyPath:
-    """Full voice call: policy holder, pension valuation. Uses scripted LLM responses."""
+    """Full voice call driven by scripted LLM responses — no real API call needed."""
 
     def test_full_voice_happy_path(self):
-        """Happy path using text_input (bypasses ASR, but exercises full orchestration)."""
-        agent = AgentOrchestrator(channel="voice")
-        ctx = agent.new_session()
+        """
+        Happy path: mock the LLM (call_with_messages) with a scripted sequence.
+        This tests the full orchestration pipeline without any real API key.
+        """
+        from app.llm_client import Entities
 
-        # Use text_input to drive the scenario (avoids ASR + gTTS network calls in CI)
+        def _make(action, intent="", response="OK", policy=None, first=None, postcode=None):
+            e = Entities()
+            if policy:   e.policy_number = policy
+            if first:    e.first_name = first
+            if postcode: e.postcode = postcode
+            return AgentTurn(action=action, intent=intent, entities=e,
+                             caller_response=response, confidence=0.95)
+
+        # Scripted LLM responses for each turn of the happy path
+        scripted_turns = iter([
+            _make("request_policy_number",              response="Please provide your policy number."),
+            _make("confirm_policy_number",               policy="ABC/123-45", response="I heard ABC/123-45 — correct?"),
+            _make("policy_exist_platform_directory_check", policy="ABC/123-45", intent="affirmative"),
+            _make("identify_caller_type",                response="Are you the policyholder?"),
+            _make("request_verification",               response="Please confirm your name."),
+            _make("continue_verification",  first="Jonathan", response="And your address?"),
+            _make("continue_verification",              response="And your postcode?"),
+            _make("confirm_postcode",       postcode="M1 1AA", response="I heard M1 1AA — correct?"),
+            _make("continue_verification",              response="And your date of birth?"),
+            _make("compare_verification",               response="Verifying..."),
+            _make("policy_valuation",                   response="Your pension value is £50,000."),
+        ])
+
+        agent = AgentOrchestrator(channel="voice")
+        ctx   = agent.new_session()
+
         script = [
             "hello",
             "My policy number is ABC slash 123 dash 45",
@@ -63,23 +90,23 @@ class TestVoiceHappyPath:
             "Jonathan Smith",
             "14 High Street",
             "M1 1AA",
-            "yes that is correct",   # postcode NATO confirm
+            "yes that is correct",
             "22nd August 1975",
             "What is my current pension value?",
         ]
 
-        for user_text in script:
-            agent.process_turn(ctx, text_input=user_text)
-            if ctx.state in (AgentState.RESOLVED, AgentState.ESCALATED):
-                break
+        with patch.object(agent._llm, "call_with_messages",
+                          side_effect=lambda msgs: next(scripted_turns, _make("respond", response="Thank you."))):
+            for user_text in script:
+                agent.process_turn(ctx, text_input=user_text)
+                if ctx.state in (AgentState.RESOLVED, AgentState.ESCALATED):
+                    break
 
-        # Should have progressed past COLLECT_POLICY at minimum
+        # Should have progressed past the first greeting turn
         assert ctx.state != AgentState.COLLECT_POLICY, \
             f"Agent stuck in COLLECT_POLICY after full script"
-        # Should NOT have escalated due to LLM_DIRECTED (no backend)
-        if ctx.state == AgentState.ESCALATED:
-            assert ctx.escalation_reason != "LLM_DIRECTED", \
-                f"Agent escalated due to missing LLM backend: {ctx.escalation_reason}"
+        assert ctx.escalation_reason != "LLM_DIRECTED", \
+            f"LLM_DIRECTED escalation means the real OpenAI was called — patch did not apply"
 
 
 # ── ASR Error Tests ───────────────────────────────────────────────────────────
@@ -135,18 +162,19 @@ class TestVoiceLLMDelays:
         assert response != ""
 
     def test_llm_timeout_escalates_gracefully(self):
-        """If _call_llm returns an 'escalate' turn, agent escalates gracefully without crashing."""
+        """If LLM call fails completely, agent escalates gracefully without crashing."""
         agent = AgentOrchestrator(channel="voice")
         ctx = agent.new_session()
 
-        # Simulate LLM returning a graceful escalation turn
+        # Simulate LLM returning a graceful escalation turn via call_with_messages
         escalate_turn = AgentTurn(
             action="escalate",
             caller_response="I'm experiencing technical difficulties, transferring you now.",
             intent="escalate",
             confidence=1.0,
         )
-        with patch.object(agent, "_call_llm", return_value=escalate_turn):
+        # Patch the correct method: call_with_messages (used in process_turn line ~207)
+        with patch.object(agent._llm, "call_with_messages", return_value=escalate_turn):
             response = agent.process_turn(ctx, text_input="hello")
 
         assert response != ""
